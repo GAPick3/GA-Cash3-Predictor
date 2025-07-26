@@ -13,7 +13,9 @@ def index():
         beta = float(request.form['beta'])
         gamma = float(request.form['gamma'])
         history = load_history('data/ga_cash3_history.csv', dtype)
-        if history:
+         if not history:
+        return render_template("index.html", error="No history data found")
+
     last = history[-1]
 else:
     last = None
