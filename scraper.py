@@ -1,3 +1,5 @@
+# scraper.py
+
 import requests
 from bs4 import BeautifulSoup
 import csv
@@ -16,7 +18,7 @@ def fetch_data():
         return []
 
     soup = BeautifulSoup(response.text, "html.parser")
-    rows = soup.select("table.results tr")
+    rows = soup.select("table.drawings tbody tr")
 
     today = datetime.now().date()
     three_years_ago = today - timedelta(days=3*365)
@@ -24,15 +26,20 @@ def fetch_data():
     data = []
     for row in rows:
         try:
-            date_str = row.select_one("td.date").text.strip()
-            date = datetime.strptime(date_str, "%a, %b %d, %Y").date()
+            date_cell = row.select_one("td.date")
+            if not date_cell:
+                continue
+
+            date_str = date_cell.text.strip()
+            date = datetime.strptime(date_str, "%A, %B %d, %Y").date()
             if date < three_years_ago:
                 continue
 
-            draw_time = row.select_one("td.draw").text.strip().lower()
-            numbers = row.select("td.results span")
+            draw_cell = row.select_one("td.draw")
+            draw_time = draw_cell.text.strip().lower() if draw_cell else "unknown"
 
-            digits = [n.text.strip() for n in numbers if n.text.strip().isdigit()]
+            number_cells = row.select("td.results span")
+            digits = [n.text.strip() for n in number_cells if n.text.strip().isdigit()]
             if len(digits) == 3:
                 data.append([date.isoformat(), draw_time] + digits)
         except Exception as e:
