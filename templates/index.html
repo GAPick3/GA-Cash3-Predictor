@@ -1,51 +1,15 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-  <meta charset="utf-8">
-  <title>Georgia Cash‑3 Predictor</title>
-  <link rel="stylesheet" href="/static/styles.css">
-</head>
+<head><title>GA Cash 3 Predictor</title></head>
 <body>
-<h1>Georgia Cash‑3 Predictor</h1>
-<form method="POST">
-  <label>Draw Type:
-    <select name="draw_type">
-      <option>Midday</option>
-      <option>Evening</option>
-      <option>Night</option>
-    </select>
-  </label>
-  <div>
-    <label>α Frequency:</label>
-    <input type="range" name="alpha" min="0" max="1" step="0.05" value="0.5">
-    <span id="val_alpha">0.50</span>
-  </div>
-  <div>
-    <label>β Transition:</label>
-    <input type="range" name="beta" min="0" max="1" step="0.05" value="0.3">
-    <span id="val_beta">0.30</span>
-  </div>
-  <div>
-    <label>γ Sum‑sum:</label>
-    <input type="range" name="gamma" min="0" max="1" step="0.05" value="0.2">
-    <span id="val_gamma">0.20</span>
-  </div>
-  <button type="submit">Predict Next Top‑5</button>
-</form>
+  <h1>Last Draw</h1>
+  <p>{{ last[0] }} - {{ last[1] }}: {{ last[2] }}{{ last[3] }}{{ last[4] }}</p>
 
-{% if predictions %}
-  <h2>Last Draw: {{ last[0] }}‑{{ last[1] }}‑{{ last[2] }}</h2>
-  <table><tr><th>Combo</th><th>Score</th></tr>
-    {% for (d1,d2,d3), sc in predictions %}
-      <tr><td>{{ d1 }}–{{ d2 }}–{{ d3 }}</td><td>{{ "%.6f"|format(sc) }}</td></tr>
+  <h2>Predicted Next Numbers</h2>
+  <ul>
+    {% for prediction in predictions %}
+      <li>{{ prediction[0] }}{{ prediction[1] }}{{ prediction[2] }}</li>
     {% endfor %}
-  </table>
-{% endif %}
-
-<script src="/static/script.js"></script>
+  </ul>
 </body>
 </html>
-
-{% if error %}
-  <p style="color:red;">{{ error }}</p>
-{% endif %}
