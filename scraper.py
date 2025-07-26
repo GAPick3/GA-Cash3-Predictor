@@ -1,19 +1,10 @@
-# scraper.py
-import csv
-import requests
-from bs4 import BeautifulSoup
-from datetime import datetime
-
-URLS = {
-    "Midday": "https://www.lotteryusa.com/georgia/midday-3/year",
-    "Evening": "https://www.lotteryusa.com/georgia/evening-3/year",
-    "Night": "https://www.lotteryusa.com/georgia/night-3/year"
-}
-
-OUTFILE = "data/ga_cash3_history.csv"
-
 def scrape_url(draw_type, url):
-    res = requests.get(url)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                      "AppleWebKit/537.36 (KHTML, like Gecko) "
+                      "Chrome/115.0.0.0 Safari/537.36"
+    }
+    res = requests.get(url, headers=headers)
     res.raise_for_status()
     soup = BeautifulSoup(res.text, "html.parser")
 
@@ -37,30 +28,3 @@ def scrape_url(draw_type, url):
             continue
 
     return records
-
-def gather_all():
-    all_records = []
-    for draw_type, url in URLS.items():
-        print(f"📥 Gathering {draw_type} draws...")
-        recs = scrape_url(draw_type, url)
-        all_records.extend(recs)
-    return all_records
-
-def save_csv(records):
-    seen = set()
-    rows = []
-    for rec in records:
-        if rec in seen:
-            continue
-        seen.add(rec)
-        rows.append(rec)
-    rows.sort()
-    with open(OUTFILE, "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(["Date", "Type", "D1", "D2", "D3"])
-        writer.writerows(rows)
-    print(f"✅ Wrote {len(rows)} records to {OUTFILE}")
-
-if __name__ == "__main__":
-    all_data = gather_all()
-    save_csv(all_data)
