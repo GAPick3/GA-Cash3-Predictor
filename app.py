@@ -1,0 +1,21 @@
+from flask import Flask, render_template, request
+from predictor import load_history, predict_top5
+
+app = Flask(__name__)  # ✅ MUST be before route decorators
+
+@app.route("/", methods=["GET", "POST"])
+def index():
+
+    predictions = None
+    if request.method == 'POST':
+        dtype = request.form['draw_type']
+        alpha = float(request.form['alpha'])
+        beta = float(request.form['beta'])
+        gamma = float(request.form['gamma'])
+        history = load_history('data/ga_cash3_history.csv', dtype)
+        last = history[-1]
+        predictions = predict_top5(history, alpha, beta, gamma)
+    return render_template('index.html', preds=predictions)
+
+if __name__=='__main__':
+    app.run(debug=True)
