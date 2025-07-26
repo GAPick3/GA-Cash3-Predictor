@@ -11,8 +11,11 @@ BASE_URLS = {
 
 OUTPUT_FILE = "data/ga_cash3_history.csv"
 
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+}
+
 def get_recent_years(n=3):
-    """Return a list of the last `n` years relative to yesterday."""
     yesterday = datetime.today() - timedelta(days=1)
     return [yesterday.year - i for i in range(n)]
 
@@ -20,7 +23,7 @@ def fetch_year_data(draw_type, base_url, year):
     url = f"{base_url}{year}/"
     print(f"🔎 Scraping {draw_type} draws for {year}: {url}")
     try:
-        response = requests.get(url)
+        response = requests.get(url, headers=HEADERS)
         response.raise_for_status()
     except requests.RequestException as e:
         print(f"❌ Failed to fetch {url}: {e}")
