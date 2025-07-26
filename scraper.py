@@ -1,57 +1,68 @@
 import requests
 from bs4 import BeautifulSoup
 import csv
-import datetime
-import time
 import os
+from datetime import datetime, timedelta
 
 BASE_URLS = {
     "Midday": "https://www.lotteryusa.com/georgia/midday-3/",
     "Evening": "https://www.lotteryusa.com/georgia/evening-3/"
 }
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-}
+OUTPUT_FILE = "data/ga_cash3_history.csv"
 
-def get_draw_data(draw_type, base_url, years=2):
-    all_results = []
-    current_year = datetime.datetime.now().year
+def get_recent_years(n=3):
+    """Return a list of the last `n` years relative to yesterday."""
+    yesterday = datetime.today() - timedelta(days=1)
+    return [yesterday.year - i for i in range(n)]
 
-    for year in range(current_year, current_year - years, -1):
-        url = f"{base_url}{year}/"
-        print(f"🔎 Scraping {draw_type} draws for {year}: {url}")
+def fetch_year_data(draw_type, base_url, year):
+    url = f"{base_url}{year}/"
+    print(f"🔎 Scraping {draw_type} draws for {year}: {url}")
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+    except requests.RequestException as e:
+        print(f"❌ Failed to fetch {url}: {e}")
+        return []
 
+    soup = BeautifulSoup(response.text, "html.parser")
+    results = []
+
+    for row in soup.select("tr.results"):
+        cols = row.select("td")
+        if len(cols) < 2:
+            continue
+        date_str = cols[0].get_text(strip=True)
+        numbers_str = cols[1].get_text(strip=True)
+        numbers = numbers_str.split()
+        if len(numbers) != 3:
+            continue
         try:
-            response = requests.get(url, headers=HEADERS)
-            response.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            print(f"❌ Failed to fetch {url}: {e}")
+            date_obj = datetime.strptime(date_str, "%m/%d/%Y")
+            results.append([date_obj.strftime("%Y-%m-%d"), draw_type] + numbers)
+        except ValueError:
             continue
 
-        soup = BeautifulSoup(response.text, "html.parser")
-        rows = soup.select("tr.draw-result")
+    return results
 
-        for row in rows:
-            date = row.select_one(".date").text.strip()
-            numbers = [n.text for n in row.select(".result .number")]
-            if len(numbers) == 3:
-                all_results.append([draw_type, date] + numbers)
-
-        time.sleep(1)  # avoid being blocked
-
-    return all_results
-
-def write_csv(data, filename="data/ga_cash3_history.csv"):
-    os.makedirs("data", exist_ok=True)
-    with open(filename, "w", newline="") as f:
+def write_to_csv(data, output_path):
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["DrawType", "Date", "Digit1", "Digit2", "Digit3"])
-        writer.writerows(data)
-    print(f"✅ Wrote {len(data)} records to {filename}")
+        writer.writerow(["Date", "Draw", "Digit1", "Digit2", "Digit3"])
+        writer.writerows(sorted(data, key=lambda x: x[0]))
+    print(f"✅ Wrote {len(data)} records to {output_path}")
+
+def main():
+    recent_years = get_recent_years(3)
+    all_data = []
+
+    for draw_type, base_url in BASE_URLS.items():
+        for year in recent_years:
+            all_data += fetch_year_data(draw_type, base_url, year)
+
+    write_to_csv(all_data, OUTPUT_FILE)
 
 if __name__ == "__main__":
-    full_data = []
-    for draw_type, url in BASE_URLS.items():
-        full_data += get_draw_data(draw_type, url)
-    write_csv(full_data)
+    main()
