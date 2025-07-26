@@ -1,29 +1,35 @@
 from flask import Flask, render_template, request
-from predictor import load_history, predict_top5
+import csv
+from predictor import predict_next_numbers
 
-app = Flask(__name__)  # ✅ MUST be before route decorators
+app = Flask(__name__)
+
+# Load draw history from CSV
+def load_history():
+    history = []
+    try:
+        with open("data/ga_cash3_history.csv", "r") as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                history.append(row)
+    except FileNotFoundError:
+        print("⚠️ Warning: history file not found.")
+    return history
 
 @app.route("/", methods=["GET", "POST"])
 def index():
+    history = load_history()
+    predictions = []
 
-    predictions = None
-    if request.method == 'POST':
-        dtype = request.form['draw_type']
-        alpha = float(request.form['alpha'])
-        beta = float(request.form['beta'])
-        gamma = float(request.form['gamma'])
-        history = load_history('data/ga_cash3_history.csv', dtype)
-    if not history:
-        return "No data available. Please check the scraper."
+    if history:
+        if request.method == "POST":
+            draw_time = request.form.get("draw_time")
+            if draw_time:
+                predictions = predict_next_numbers(history, draw_time)
+    else:
+        predictions = ["Error: No history data loaded."]
 
-        last = history[-1]
-else:
-    last = None
-        predictions = predict_top5(history, alpha, beta, gamma)
-    return render_template('index.html', preds=predictions)
-
-import os
+    return render_template("index.html", predictions=predictions)
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(debug=True, host="0.0.0.0", port=port)
+    app.run(debug=True)
