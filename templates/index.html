@@ -1,15 +1,17 @@
-<!doctype html>
+<!-- templates/index.html -->
+<!DOCTYPE html>
 <html>
-<head><title>GA Cash 3 Predictor</title></head>
+<head>
+    <title>GA Cash 3 Predictor</title>
+</head>
 <body>
-  <h1>Last Draw</h1>
-  <p>{{ last[0] }} - {{ last[1] }}: {{ last[2] }}{{ last[3] }}{{ last[4] }}</p>
-
-  <h2>Predicted Next Numbers</h2>
-  <ul>
-    {% for prediction in predictions %}
-      <li>{{ prediction[0] }}{{ prediction[1] }}{{ prediction[2] }}</li>
-    {% endfor %}
-  </ul>
+    <h1>GA Cash 3 Predictor</h1>
+    <p><strong>Latest Draw:</strong> {{ latest['Date'] }} - {{ latest['Draw'] }} - {{ latest['Number'] }}</p>
+    <h2>Predicted Numbers</h2>
+    <ul>
+        {% for number in predictions %}
+            <li>{{ number }}</li>
+        {% endfor %}
+    </ul>
 </body>
 </html>
