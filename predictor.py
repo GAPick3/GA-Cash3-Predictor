@@ -1,9 +1,11 @@
-# predictor.py
-
 import pandas as pd
-import random
+from collections import Counter
 
-def predict_next_numbers(history, n=5):
-    # Naive prediction: most common triplets
-    freq = df['Number'].value_counts().head(5)
-    return list(freq.index)
+def predict_next_numbers(df=None, n=5):
+    if df is None:
+        df = pd.read_csv("data/ga_cash3_history.csv")
+
+    triplets = df.apply(lambda row: f"{int(row['Number1'])}{int(row['Number2'])}{int(row['Number3'])}", axis=1)
+    most_common = Counter(triplets).most_common(n)
+    
+    return [x[0] for x in most_common]
