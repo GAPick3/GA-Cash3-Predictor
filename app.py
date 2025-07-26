@@ -13,10 +13,10 @@ def index():
         beta = float(request.form['beta'])
         gamma = float(request.form['gamma'])
         history = load_history('data/ga_cash3_history.csv', dtype)
-         if not history:
-        return render_template("index.html", error="No history data found")
+    if not history:
+        return "No data available. Please check the scraper."
 
-    last = history[-1]
+        last = history[-1]
 else:
     last = None
         predictions = predict_top5(history, alpha, beta, gamma)
