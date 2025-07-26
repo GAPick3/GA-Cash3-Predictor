@@ -1,72 +1,49 @@
 import requests
 from bs4 import BeautifulSoup
 import csv
-import os
 from datetime import datetime, timedelta
+import os
 
-BASE_URLS = {
-    "Midday": "https://www.lotteryusa.com/georgia/midday-3/{year}/",
-    "Evening": "https://www.lotteryusa.com/georgia/evening-3/{year}/",
-    "Night": "https://www.lotteryusa.com/georgia/night-3/{year}/"
-}
-
-OUTPUT_FILE = "data/ga_cash3_history.csv"
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-}
-
-def get_recent_years(n=3):
-    yesterday = datetime.today() - timedelta(days=1)
-    return [yesterday.year - i for i in range(n)]
-
-def fetch_year_data(draw_type, base_url, year):
-    url = f"{base_url}{year}/"
-    print(f"🔎 Scraping {draw_type} draws for {year}: {url}")
+def fetch_data(draw_time, year):
+    url = f"https://www.lotteryusa.com/georgia/{draw_time}-3/{year}/"
+    print(f"🔎 Scraping {draw_time.title()} draws for {year}: {url}")
     try:
-        response = requests.get(url, headers=HEADERS)
+        response = requests.get(url)
         response.raise_for_status()
-    except requests.RequestException as e:
+    except requests.exceptions.RequestException as e:
         print(f"❌ Failed to fetch {url}: {e}")
         return []
 
     soup = BeautifulSoup(response.text, "html.parser")
-    results = []
+    rows = soup.select(".drawings.table tbody tr")
 
-    for row in soup.select("tr.results"):
-        cols = row.select("td")
-        if len(cols) < 2:
-            continue
-        date_str = cols[0].get_text(strip=True)
-        numbers_str = cols[1].get_text(strip=True)
-        numbers = numbers_str.split()
-        if len(numbers) != 3:
-            continue
+    data = []
+    for row in rows:
         try:
-            date_obj = datetime.strptime(date_str, "%m/%d/%Y")
-            results.append([date_obj.strftime("%Y-%m-%d"), draw_type] + numbers)
-        except ValueError:
+            date_str = row.select_one(".date").text.strip()
+            numbers = row.select_one(".result").text.strip().split()
+            date = datetime.strptime(date_str, "%m/%d/%Y").date()
+            data.append([date.isoformat(), draw_time] + numbers)
+        except Exception as e:
             continue
-
-    return results
-
-def write_to_csv(data, output_path):
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    with open(output_path, "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(["Date", "Draw", "Digit1", "Digit2", "Digit3"])
-        writer.writerows(sorted(data, key=lambda x: x[0]))
-    print(f"✅ Wrote {len(data)} records to {output_path}")
+    return data
 
 def main():
-    recent_years = get_recent_years(3)
+    today = datetime.now().date()
+    start_year = (today - timedelta(days=3*365)).year
+    end_year = today.year
     all_data = []
 
-    for draw_type, base_url in BASE_URLS.items():
-        for year in recent_years:
-            all_data += fetch_year_data(draw_type, base_url, year)
+    for year in range(start_year, end_year + 1):
+        for draw in ['midday', 'evening', 'night']:
+            all_data.extend(fetch_data(draw, year))
 
-    write_to_csv(all_data, OUTPUT_FILE)
+    os.makedirs("data", exist_ok=True)
+    with open("data/ga_cash3_history.csv", "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["date", "draw", "digit1", "digit2", "digit3"])
+        writer.writerows(all_data)
+    print(f"✅ Wrote {len(all_data)} records to data/ga_cash3_history.csv")
 
 if __name__ == "__main__":
     main()
