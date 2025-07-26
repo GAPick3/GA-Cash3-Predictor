@@ -5,8 +5,9 @@ import os
 from datetime import datetime, timedelta
 
 BASE_URLS = {
-    "Midday": "https://www.lotteryusa.com/georgia/midday-3/",
-    "Evening": "https://www.lotteryusa.com/georgia/evening-3/"
+    "Midday": "https://www.lotteryusa.com/georgia/midday-3/{year}/",
+    "Evening": "https://www.lotteryusa.com/georgia/evening-3/{year}/",
+    "Night": "https://www.lotteryusa.com/georgia/night-3/{year}/"
 }
 
 OUTPUT_FILE = "data/ga_cash3_history.csv"
