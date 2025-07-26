@@ -5,7 +5,9 @@ from datetime import datetime, timedelta
 import os
 
 def fetch_data(draw_time, year):
-    url = f"https://www.lotteryusa.com/georgia/{draw_time}-3/{year}/"
+    url = f"https://www.lotteryusa.com/georgia/{Midday}-3/",
+    f"https://www.lotteryusa.com/georgia/{Evening}-3/",
+    f"https://www.lotteryusa.com/georgia/{Night}-3/"
     print(f"🔎 Scraping {draw_time.title()} draws for {year}: {url}")
     try:
         response = requests.get(url)
