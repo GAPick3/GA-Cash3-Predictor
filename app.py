@@ -13,7 +13,10 @@ def index():
         beta = float(request.form['beta'])
         gamma = float(request.form['gamma'])
         history = load_history('data/ga_cash3_history.csv', dtype)
-        last = history[-1]
+        if history:
+    last = history[-1]
+else:
+    last = None
         predictions = predict_top5(history, alpha, beta, gamma)
     return render_template('index.html', preds=predictions)
 
