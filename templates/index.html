@@ -1,18 +1,23 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
-<head><title>GA Cash 3 Predictor</title></head>
+<head>
+    <title>GA Cash 3 Predictor</title>
+</head>
 <body>
-  <h1>GA Cash 3 Predictor</h1>
-  {% if error %}
-    <p style="color:red">{{ error }}</p>
-  {% else %}
-    <h2>Latest Draw: {{ latest.Date }} ({{ latest.Draw }}) — {{ latest.Number1 }}{{ latest.Number2 }}{{ latest.Number3 }}</h2>
-    <h3>Top 5 Predictions:</h3>
-    <ul>
-      {% for p in predictions %}
-        <li>{{ p }}</li>
-      {% endfor %}
-    </ul>
-  {% endif %}
+    <h1>GA Cash 3 Predictor</h1>
+
+    {% if error %}
+        <p style="color: red;">{{ error }}</p>
+    {% else %}
+        <h2>Latest Draw</h2>
+        <p>{{ latest.Date }} - {{ latest.Draw }}: {{ latest.Number1 }} {{ latest.Number2 }} {{ latest.Number3 }}</p>
+
+        <h2>Top Predictions</h2>
+        <ul>
+            {% for p in predictions %}
+                <li>{{ p }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
 </body>
 </html>
