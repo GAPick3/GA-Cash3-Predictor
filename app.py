@@ -1,4 +1,3 @@
-# app.py
 from flask import Flask, render_template
 from predictor import predict_next_numbers
 import pandas as pd
@@ -17,7 +16,6 @@ def index():
 
     latest = df.iloc[0]
     predictions = predict_next_numbers(df)
-    print("✅ Loaded data and predictions")  # <- moved here
     return render_template("index.html", latest=latest, predictions=predictions)
 
 if __name__ == "__main__":
