@@ -1,5 +1,3 @@
-# scraper.py
-
 import requests
 from bs4 import BeautifulSoup
 import csv
@@ -7,9 +5,9 @@ from datetime import datetime, timedelta
 import os
 
 def fetch_data():
-    url = "https://www.lotteryusa.com/georgia/cash-3/"
+    url = "https://www.lotterypost.com/results/ga/cash3/past"
     print(f"🔎 Scraping: {url}")
-    
+
     try:
         response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
         response.raise_for_status()
@@ -18,29 +16,32 @@ def fetch_data():
         return []
 
     soup = BeautifulSoup(response.text, "html.parser")
-    rows = soup.select("table.drawings tbody tr")
 
     today = datetime.now().date()
-    three_years_ago = today - timedelta(days=3*365)
+    three_years_ago = today - timedelta(days=3 * 365)
 
     data = []
+
+    # This part is hypothetical — we’ll fine-tune once we inspect the real page
+    rows = soup.select("table.results-table tbody tr")
+
     for row in rows:
         try:
-            date_cell = row.select_one("td.date")
-            if not date_cell:
+            cols = row.find_all("td")
+            if len(cols) < 4:
                 continue
 
-            date_str = date_cell.text.strip()
-            date = datetime.strptime(date_str, "%A, %B %d, %Y").date()
+            date_str = cols[0].text.strip()
+            date = datetime.strptime(date_str, "%m/%d/%Y").date()
+
             if date < three_years_ago:
                 continue
 
-            draw_cell = row.select_one("td.draw")
-            draw_time = draw_cell.text.strip().lower() if draw_cell else "unknown"
+            draw_time = cols[1].text.strip().lower()  # Could be 'midday', 'evening', etc.
+            numbers = cols[2].text.strip().replace("–", "").replace(" ", "")
+            digits = list(numbers)
 
-            number_cells = row.select("td.results span")
-            digits = [n.text.strip() for n in number_cells if n.text.strip().isdigit()]
-            if len(digits) == 3:
+            if len(digits) == 3 and all(d.isdigit() for d in digits):
                 data.append([date.isoformat(), draw_time] + digits)
         except Exception as e:
             continue
