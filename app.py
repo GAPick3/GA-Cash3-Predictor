@@ -9,12 +9,17 @@ app = Flask(__name__)
 def index():
     try:
         df = pd.read_csv("data/ga_cash3_history.csv")
+
         if df.empty:
             return render_template("index.html", error="No data found.")
+
+        # Clean column values if needed
+        df['Draw'] = df['Draw'].str.strip().str.capitalize()
+        df['DrawTime'] = df['DrawTime'].str.strip()
+
     except Exception as e:
         return render_template("index.html", error=f"Error loading data: {e}")
 
-    # Show latest result and predictions
     latest = df.iloc[0]
     predictions = predict_next_numbers(df)
 
