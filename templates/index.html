@@ -16,10 +16,16 @@
         {% if error %}
             <p class="error">{{ error }}</p>
         {% else %}
-            <h2>Latest Draw</h2>
-            <p><strong>Date:</strong> {{ latest['Date'] }}</p>
-            <p><strong>Time:</strong> {{ latest['Time'] }}</p>
-            <p><strong>Winning Numbers:</strong> {{ latest['Digit1'] }}{{ latest['Digit2'] }}{{ latest['Digit3'] }}</p>
+            <!-- Add this where you display the latest draw -->
+<h2>Latest Result</h2>
+<p><strong>Date:</strong> {{ latest['Date'] }}</p>
+<p><strong>Draw Time:</strong> {{ latest['Draw'] | title }} - 
+    {% if latest['Draw'] == 'Midday' %}12:20pm
+    {% elif latest['Draw'] == 'Evening' %}6:59pm
+    {% elif latest['Draw'] == 'Night' %}11:34pm
+    {% else %}Time Unknown{% endif %}
+</p>
+<p><strong>Numbers:</strong> {{ latest['Digit1'] }} - {{ latest['Digit2'] }} - {{ latest['Digit3'] }}</p>
 
             <h2>Predictions</h2>
             <ul>
