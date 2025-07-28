@@ -1,24 +1,36 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>GA Cash 3 Predictor</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 2rem; background: #f4f4f4; }
+        .box { background: #fff; padding: 1.5rem; border-radius: 8px; max-width: 600px; margin: auto; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        h1, h2 { text-align: center; }
+        .numbers { font-size: 2rem; text-align: center; margin-top: 1rem; }
+        .error { color: red; text-align: center; }
+    </style>
 </head>
 <body>
-    <h1>Georgia Cash 3 Predictor</h1>
-    {% if error %}
-        <p style="color: red;">{{ error }}</p>
-    {% else %}
-        <h2>Latest Draw</h2>
-        <p>Date: {{ latest.Date }}</p>
-        <p>Draw: {{ latest.Draw }}</p>
-        <p>Numbers: {{ latest.Number1 }} {{ latest.Number2 }} {{ latest.Number3 }}</p>
+    <div class="box">
+        <h1>GA Cash 3 Predictor</h1>
 
-        <h2>Top Predictions</h2>
-        <ul>
-        {% for p in predictions %}
-            <li>{{ p }}</li>
-        {% endfor %}
-        </ul>
-    {% endif %}
+        {% if error %}
+            <p class="error">{{ error }}</p>
+        {% else %}
+            <h2>Latest Draw</h2>
+            <div class="numbers">
+                <strong>{{ latest.Date }} ({{ latest.Draw }}):</strong>
+                {{ latest.Digit1 }} {{ latest.Digit2 }} {{ latest.Digit3 }}
+            </div>
+
+            <h2>Top Predictions</h2>
+            <div class="numbers">
+                {% for number in predictions %}
+                    <div>{{ number }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
 </body>
 </html>
