@@ -1,39 +1,26 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>GA Cash 3 Predictor</title>
-    <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
-        .container { max-width: 500px; margin: auto; }
-        .error { color: red; }
-        h1, h2 { text-align: center; }
-    </style>
+  <meta charset="UTF-8">
+  <title>GA Cash 3 Predictor</title>
 </head>
 <body>
-    <div class="container">
-        <h1>GA Cash 3 Predictor</h1>
+  <h1>GA Cash 3 Predictor</h1>
 
-        {% if error %}
-            <p class="error">{{ error }}</p>
-        {% else %}
-            <!-- Add this where you display the latest draw -->
-<h2>Latest Result</h2>
-<p><strong>Date:</strong> {{ latest['Date'] }}</p>
-<p><strong>Draw Time:</strong> {{ latest['Draw'] | title }} - 
-    {% if latest['Draw'] == 'Midday' %}12:20pm
-    {% elif latest['Draw'] == 'Evening' %}6:59pm
-    {% elif latest['Draw'] == 'Night' %}11:34pm
-    {% else %}Time Unknown{% endif %}
-</p>
-<p><strong>Numbers:</strong> {{ latest['Digit1'] }} - {{ latest['Digit2'] }} - {{ latest['Digit3'] }}</p>
+  {% if error %}
+    <p style="color: red;">{{ error }}</p>
+  {% else %}
+    <h2>Latest Result</h2>
+    <p><strong>Date:</strong> {{ latest['Date'] }}</p>
+    <p><strong>Draw:</strong> {{ latest['Draw'] }} at {{ latest['DrawTime'] }}</p>
+    <p><strong>Winning Numbers:</strong> {{ latest['Winning Numbers'] }}</p>
 
-            <h2>Predictions</h2>
-            <ul>
-                {% for number in predictions %}
-                    <li>{{ number }}</li>
-                {% endfor %}
-            </ul>
-        {% endif %}
-    </div>
+    <h2>Predicted Next Numbers</h2>
+    <ul>
+      {% for number in predictions %}
+        <li>{{ number }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
 </body>
 </html>
