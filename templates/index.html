@@ -1,35 +1,32 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
     <title>GA Cash 3 Predictor</title>
     <style>
-        body { font-family: Arial, sans-serif; padding: 2rem; background: #f4f4f4; }
-        .box { background: #fff; padding: 1.5rem; border-radius: 8px; max-width: 600px; margin: auto; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .container { max-width: 500px; margin: auto; }
+        .error { color: red; }
         h1, h2 { text-align: center; }
-        .numbers { font-size: 2rem; text-align: center; margin-top: 1rem; }
-        .error { color: red; text-align: center; }
     </style>
 </head>
 <body>
-    <div class="box">
+    <div class="container">
         <h1>GA Cash 3 Predictor</h1>
 
         {% if error %}
             <p class="error">{{ error }}</p>
         {% else %}
             <h2>Latest Draw</h2>
-            <div class="numbers">
-                <strong>{{ latest.Date }} ({{ latest.Draw }}):</strong>
-                {{ latest.Digit1 }} {{ latest.Digit2 }} {{ latest.Digit3 }}
-            </div>
+            <p><strong>Date:</strong> {{ latest['Date'] }}</p>
+            <p><strong>Time:</strong> {{ latest['Time'] }}</p>
+            <p><strong>Winning Numbers:</strong> {{ latest['Digit1'] }}{{ latest['Digit2'] }}{{ latest['Digit3'] }}</p>
 
-            <h2>Top Predictions</h2>
-            <div class="numbers">
+            <h2>Predictions</h2>
+            <ul>
                 {% for number in predictions %}
-                    <div>{{ number }}</div>
+                    <li>{{ number }}</li>
                 {% endfor %}
-            </div>
+            </ul>
         {% endif %}
     </div>
 </body>
