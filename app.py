@@ -14,6 +14,7 @@ def index():
     except Exception as e:
         return render_template("index.html", error=f"Error loading data: {e}")
 
+    # Show latest result and predictions
     latest = df.iloc[0]
     predictions = predict_next_numbers(df)
 
