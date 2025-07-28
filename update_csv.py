@@ -1,44 +1,95 @@
+# update_csv.py
+
 import pandas as pd
-from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
+from datetime import datetime
+import os
 
-def fetch_latest_result():
+CSV_PATH = "data/ga_cash3_history.csv"
+
+# Known draw times
+DRAW_TIMES = {
+    "Midday": "12:20 PM",
+    "Evening": "6:59 PM",
+    "Night": "11:34 PM"
+}
+
+def fetch_latest_results():
     url = "https://www.lotterypost.com/results/georgia/cash-3"
     headers = {"User-Agent": "Mozilla/5.0"}
-    resp = requests.get(url, headers=headers)
-    soup = BeautifulSoup(resp.text, "html.parser")
+    print(f"🔎 Fetching: {url}")
+    
+    try:
+        resp = requests.get(url, headers=headers)
+        resp.raise_for_status()
+    except Exception as e:
+        print("❌ Error fetching results:", e)
+        return []
 
-    for row in soup.select("table.results tbody tr"):
+    soup = BeautifulSoup(resp.text, "html.parser")
+    rows = soup.select("table.results tbody tr")
+
+    new_rows = []
+
+    for row in rows:
         try:
             cols = row.find_all("td")
             if len(cols) < 3:
                 continue
-            date = datetime.strptime(cols[0].text.strip(), "%m/%d/%Y").date()
-            draw = cols[1].text.strip()
-            digits = [int(n) for n in cols[2].text.strip().split() if n.isdigit()]
-            if len(digits) == 3:
-                time_map = {"Midday": "12:20pm", "Evening": "6:59pm", "Night": "11:34pm"}
-                return [str(date), draw, digits[0], digits[1], digits[2], time_map.get(draw, "")]
-        except:
-            continue
-    return None
 
-def update_csv():
-    new = fetch_latest_result()
-    if not new:
-        print("No new data found.")
+            date_str = cols[0].text.strip()
+            draw_time_label = cols[1].text.strip()
+            number_text = cols[2].text.strip()
+
+            draw_date = datetime.strptime(date_str, "%m/%d/%Y").date()
+            numbers = [int(n) for n in number_text.split() if n.isdigit()]
+
+            if len(numbers) == 3 and draw_time_label in DRAW_TIMES:
+                full_time = DRAW_TIMES[draw_time_label]
+                new_rows.append({
+                    "Date": draw_date.isoformat(),
+                    "Draw": draw_time_label,
+                    "DrawTime": full_time,
+                    "Digit1": numbers[0],
+                    "Digit2": numbers[1],
+                    "Digit3": numbers[2],
+                })
+        except Exception as e:
+            print(f"⚠️ Skipping row due to error: {e}")
+            continue
+
+    return new_rows
+
+
+def append_new_draws():
+    # Load existing CSV
+    if os.path.exists(CSV_PATH):
+        df = pd.read_csv(CSV_PATH)
+    else:
+        df = pd.DataFrame(columns=["Date", "Draw", "DrawTime", "Digit1", "Digit2", "Digit3"])
+
+    existing_rows = set(df[["Date", "Draw"]].apply(tuple, axis=1))
+
+    new_data = fetch_latest_results()
+    if not new_data:
+        print("ℹ️ No new results found.")
         return
 
-    df = pd.read_csv("data/ga_cash3_history.csv")
-    if not ((df["Date"] == new[0]) & (df["Draw"] == new[1])).any():
-        print("🔄 Adding new draw:", new)
-        df.loc[-1] = new  # Add row
-        df.index = df.index + 1
-        df.sort_index(inplace=True)
-        df.to_csv("data/ga_cash3_history.csv", index=False)
+    added = 0
+    for row in new_data:
+        key = (row["Date"], row["Draw"])
+        if key not in existing_rows:
+            df = pd.concat([pd.DataFrame([row]), df], ignore_index=True)
+            added += 1
+
+    if added > 0:
+        df.sort_values(by=["Date", "Draw"], ascending=[False, False], inplace=True)
+        df.to_csv(CSV_PATH, index=False)
+        print(f"✅ Added {added} new draw(s) to {CSV_PATH}")
     else:
-        print("✅ Latest draw already exists. No update needed.")
+        print("✅ No new draws to add. File is up to date.")
+
 
 if __name__ == "__main__":
-    update_csv()
+    append_new_draws()
