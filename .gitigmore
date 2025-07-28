@@ -1,5 +1,0 @@
-# .gitignore
-*.pyc
-__pycache__/
-data/ga_cash3_history.csv
-.env
