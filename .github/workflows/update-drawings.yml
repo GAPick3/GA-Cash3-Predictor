@@ -2,8 +2,10 @@ name: Update GA Cash 3 Results
 
 on:
   schedule:
-    - cron: '15 * * * *'  # every hour at HH:15 UTC
-  workflow_dispatch:       # allow manual run
+    - cron: '50 16 * * *'  # Midday: 12:50 PM ET
+    - cron: '30 23 * * *'  # Evening: 7:30 PM ET
+    - cron: '5 4 * * *'    # Night: 12:05 AM ET
+  workflow_dispatch:       # Allows manual run
 
 jobs:
   update:
@@ -24,10 +26,10 @@ jobs:
       - name: Run update script
         run: python update_csv.py
 
-      - name: Commit & push changes
+      - name: Commit and push changes
         run: |
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
           git add data/ga_cash3_history.csv
-          git commit -m "🔄 Auto-update CSV with latest result" || echo "No changes"
+          git commit -m "🔄 Auto-update CSV after draw" || echo "No changes"
           git push
