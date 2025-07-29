@@ -1,68 +1,92 @@
 # strategy_predictor.py
+
 import pandas as pd
-from collections import Counter
-import itertools
+import random
+from collections import defaultdict
 from datetime import datetime
 
 
-def load_data(filepath="data/ga_cash3_history.csv"):
-    df = pd.read_csv(filepath)
-    df["Digit1"] = df["Digit1"].astype(int)
-    df["Digit2"] = df["Digit2"].astype(int)
-    df["Digit3"] = df["Digit3"].astype(int)
-    df["Number"] = df["Digit1"].astype(str) + df["Digit2"].astype(str) + df["Digit3"].astype(str)
-    return df
+# Parameters
+DECAY_FACTOR = 0.95  # How fast frequency weight decays
+NUM_PREDICTIONS = 5  # Number of predictions to generate
 
 
-def get_pattern(row):
-    digits = [row["Digit1"], row["Digit2"], row["Digit3"]]
-    unique_digits = len(set(digits))
-    if unique_digits == 1:
-        return "Triple"
-    elif unique_digits == 2:
-        return "Double"
-    else:
-        return "Unique"
+def load_history(csv_path='data/ga_cash3_history.csv'):
+    df = pd.read_csv(csv_path)
+    df = df.dropna()
+    df['Number'] = df['Number'].astype(str).str.zfill(3)
+    df['DrawDate'] = pd.to_datetime(df['DrawDate'])
+    return df.sort_values('DrawDate', ascending=True)
 
 
-def generate_strategic_predictions(filepath="data/ga_cash3_history.csv", max_preds=5):
-    df = load_data(filepath)
-    df["Pattern"] = df.apply(get_pattern, axis=1)
+def get_digit_position_freqs(df):
+    """Return frequency and recency-decayed frequency for each digit and position."""
+    decay_scores = [DECAY_FACTOR ** i for i in reversed(range(len(df)))]
+    pos_freq = [defaultdict(float) for _ in range(3)]
 
-    # Count overall digit and position frequencies
-    digits = df[["Digit1", "Digit2", "Digit3"]].values.flatten()
-    hot_digits = [d for d, _ in Counter(digits).most_common(5)]
-    cold_digits = [d for d, _ in Counter(digits).most_common()][-5:]
+    for i, (_, row) in enumerate(df.iterrows()):
+        num = row['Number']
+        for pos in range(3):
+            digit = int(num[pos])
+            pos_freq[pos][digit] += decay_scores[i]  # Decayed contribution
 
-    pos_counts = {
-        "Digit1": Counter(df["Digit1"]),
-        "Digit2": Counter(df["Digit2"]),
-        "Digit3": Counter(df["Digit3"]),
-    }
-
-    # Recent results and patterns
-    recent_numbers = df["Number"].head(30).tolist()
-    pattern_trend = df["Pattern"].head(30).value_counts().idxmax()
-
-    pattern_numbers = df[df["Pattern"] == pattern_trend]["Number"].unique().tolist()
-    pattern_candidates = [n for n in pattern_numbers if n not in recent_numbers]
-
-    # Combine strategy: hot/cold, pattern matching
-    base_digits = hot_digits + cold_digits
-    combos = ["".join(map(str, c)) for c in itertools.product(base_digits, repeat=3)]
-
-    final_candidates = [n for n in combos if n not in recent_numbers][:max_preds] + pattern_candidates[:max_preds]
-
-    return list(dict.fromkeys(final_candidates))[:max_preds]  # De-dupe & limit
+    return pos_freq
 
 
-def save_predictions(predictions, path="data/prediction_log.csv"):
-    time_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    df = pd.DataFrame({"timestamp": [time_now] * len(predictions), "prediction": predictions})
-    df.to_csv(path, mode="a", header=not pd.io.common.file_exists(path), index=False)
+def get_transition_matrix(df):
+    """Return digit transition matrix for each position."""
+    transitions = [defaultdict(lambda: defaultdict(int)) for _ in range(3)]
+
+    for i in range(1, len(df)):
+        prev = df.iloc[i-1]['Number']
+        curr = df.iloc[i]['Number']
+        for pos in range(3):
+            prev_digit = int(prev[pos])
+            curr_digit = int(curr[pos])
+            transitions[pos][prev_digit][curr_digit] += 1
+
+    return transitions
 
 
-if __name__ == "__main__":
-    preds = generate_strategic_predictions()
-    print("Predicted Numbers:", preds)
-    save_predictions(preds)
+def weighted_sample(freq_dict):
+    """Randomly sample a key from dict based on weighted values."""
+    total = sum(freq_dict.values())
+    if total == 0:
+        return random.randint(0, 9)
+    r = random.uniform(0, total)
+    upto = 0
+    for k, w in freq_dict.items():
+        upto += w
+        if upto >= r:
+            return k
+    return random.choice(list(freq_dict.keys()))
+
+
+def predict_next_numbers():
+    df = load_history()
+    freq_by_position = get_digit_position_freqs(df)
+    transitions = get_transition_matrix(df)
+    last_draw = df.iloc[-1]['Number']
+
+    predictions = []
+    for _ in range(NUM_PREDICTIONS):
+        number = ''
+        for pos in range(3):
+            prev_digit = int(last_draw[pos])
+            combined_weights = defaultdict(float)
+
+            # Use transition logic + decayed frequency
+            for d in range(10):
+                combined_weights[d] = freq_by_position[pos].get(d, 0) * 0.6 + \
+                                       transitions[pos][prev_digit].get(d, 0) * 0.4
+
+            digit = weighted_sample(combined_weights)
+            number += str(digit)
+
+        predictions.append(number)
+
+    return predictions
+
+
+if __name__ == '__main__':
+    print(predict_next_numbers())
