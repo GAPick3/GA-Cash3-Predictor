@@ -1,26 +1,53 @@
+<!-- templates/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GA Cash 3 Predictor</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    h1 { color: #333; }
+    .section { margin-bottom: 40px; }
+    .predictions, .log { background: #f4f4f4; padding: 15px; border-radius: 8px; }
+    .log table { width: 100%; border-collapse: collapse; }
+    .log th, .log td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+  </style>
 </head>
 <body>
-  <h1>GA Cash 3 Predictor</h1>
+  <div class="section">
+    <h1>GA Cash 3 Predictor</h1>
+    <p><strong>Latest Result:</strong> {{ result.date }} ({{ result.draw }}) @ {{ result.draw_time }} — <strong>{{ result.digits }}</strong></p>
+  </div>
 
-  {% if error %}
-    <p style="color: red;">{{ error }}</p>
-  {% else %}
-    <h2>Latest Result</h2>
-    <p><strong>Date:</strong> {{ latest['Date'] }}</p>
-    <p><strong>Draw:</strong> {{ latest['Draw'] }} at {{ latest['DrawTime'] }}</p>
-    <p><strong>Winning Numbers:</strong> {{ latest['Winning Numbers'] }}</p>
-
-    <h2>Predicted Next Numbers</h2>
+  <div class="section predictions">
+    <h2>Today's Predictions</h2>
     <ul>
-      {% for number in predictions %}
-        <li>{{ number }}</li>
+      {% for p in predictions %}
+        <li><strong>{{ p }}</strong></li>
       {% endfor %}
     </ul>
-  {% endif %}
+  </div>
+
+  <div class="section log">
+    <h2>Prediction History</h2>
+    {% if history %}
+    <table>
+      <thead>
+        <tr><th>Time</th><th>Prediction</th></tr>
+      </thead>
+      <tbody>
+        {% for entry in history %}
+          <tr>
+            <td>{{ entry.timestamp }}</td>
+            <td>{{ entry.prediction }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p>No prediction history yet.</p>
+    {% endif %}
+  </div>
 </body>
 </html>
