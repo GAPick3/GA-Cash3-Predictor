@@ -1,30 +1,40 @@
+# app.py
 from flask import Flask, render_template
 import pandas as pd
-from predictor import predict_next_numbers
-import os
+from strategy_predictor import generate_strategic_predictions
 
 app = Flask(__name__)
 
-@app.route('/')
-def index():
+data_path = "data/ga_cash3_history.csv"
+prediction_log_path = "data/prediction_log.csv"
+
+
+def get_latest_result():
+    df = pd.read_csv(data_path)
+    latest = df.iloc[0]  # Assuming most recent is first row
+    return {
+        "date": latest["Date"],
+        "draw": latest["Draw"],
+        "digits": f"{latest['Digit1']}{latest['Digit2']}{latest['Digit3']}",
+        "draw_time": latest["DrawTime"]
+    }
+
+
+def get_prediction_log(n=10):
     try:
-        df = pd.read_csv("data/ga_cash3_history.csv")
+        df = pd.read_csv(prediction_log_path)
+        return df.tail(n).to_dict(orient="records")
+    except FileNotFoundError:
+        return []
 
-        if df.empty:
-            return render_template("index.html", error="No data found.")
 
-        # Clean column values if needed
-        df['Draw'] = df['Draw'].str.strip().str.capitalize()
-        df['DrawTime'] = df['DrawTime'].str.strip()
+@app.route("/")
+def index():
+    latest_result = get_latest_result()
+    predictions = generate_strategic_predictions()
+    prediction_log = get_prediction_log()
+    return render_template("index.html", result=latest_result, predictions=predictions, history=prediction_log)
 
-    except Exception as e:
-        return render_template("index.html", error=f"Error loading data: {e}")
-
-    latest = df.iloc[0]
-    predictions = predict_next_numbers(df)
-
-    return render_template("index.html", latest=latest, predictions=predictions)
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(debug=False, host="0.0.0.0", port=port)
+    app.run(debug=True)
