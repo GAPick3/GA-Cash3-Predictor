@@ -1,5 +1,3 @@
-# update_csv.py
-
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
@@ -14,6 +12,9 @@ DRAW_TIMES = {
     "Evening": "6:59 PM",
     "Night": "11:34 PM"
 }
+
+# Custom order for sorting Draw times
+DRAW_ORDER = {"Midday": 1, "Evening": 2, "Night": 3}
 
 def fetch_latest_results():
     url = "https://www.lotterypost.com/results/georgia/cash-3"
@@ -39,18 +40,17 @@ def fetch_latest_results():
                 continue
 
             date_str = cols[0].text.strip()
-            draw_time_label = cols[1].text.strip()
+            draw_label = cols[1].text.strip()
             number_text = cols[2].text.strip()
 
             draw_date = datetime.strptime(date_str, "%m/%d/%Y").date()
             numbers = [int(n) for n in number_text.split() if n.isdigit()]
 
-            if len(numbers) == 3 and draw_time_label in DRAW_TIMES:
-                full_time = DRAW_TIMES[draw_time_label]
+            if len(numbers) == 3 and draw_label in DRAW_TIMES:
                 new_rows.append({
                     "Date": draw_date.isoformat(),
-                    "Draw": draw_time_label,
-                    "DrawTime": full_time,
+                    "Draw": draw_label,
+                    "DrawTime": DRAW_TIMES[draw_label],
                     "Digit1": numbers[0],
                     "Digit2": numbers[1],
                     "Digit3": numbers[2],
@@ -63,13 +63,12 @@ def fetch_latest_results():
 
 
 def append_new_draws():
-    # Load existing CSV
     if os.path.exists(CSV_PATH):
         df = pd.read_csv(CSV_PATH)
     else:
         df = pd.DataFrame(columns=["Date", "Draw", "DrawTime", "Digit1", "Digit2", "Digit3"])
 
-    existing_rows = set(df[["Date", "Draw"]].apply(tuple, axis=1))
+    existing_keys = set(df[["Date", "Draw"]].apply(tuple, axis=1))
 
     new_data = fetch_latest_results()
     if not new_data:
@@ -79,12 +78,15 @@ def append_new_draws():
     added = 0
     for row in new_data:
         key = (row["Date"], row["Draw"])
-        if key not in existing_rows:
+        if key not in existing_keys:
             df = pd.concat([pd.DataFrame([row]), df], ignore_index=True)
             added += 1
 
     if added > 0:
-        df.sort_values(by=["Date", "Draw"], ascending=[False, False], inplace=True)
+        df["DrawSort"] = df["Draw"].map(DRAW_ORDER)
+        df.sort_values(by=["Date", "DrawSort"], ascending=[False, True], inplace=True)
+        df.drop(columns=["DrawSort"], inplace=True)
+        df = df[["Date", "Draw", "DrawTime", "Digit1", "Digit2", "Digit3"]]
         df.to_csv(CSV_PATH, index=False)
         print(f"✅ Added {added} new draw(s) to {CSV_PATH}")
     else:
