@@ -5,7 +5,7 @@ from strategy_predictor import generate_strategic_predictions, save_predictions
 
 # Georgia Cash 3 Draw Times (24-hour format)
 DRAW_TIMES = [
-    "12:20",  # Midday
+    "12:29",  # Midday
     "18:59",  # Evening
     "23:34"   # Night
 ]
