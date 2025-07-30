@@ -15,7 +15,7 @@ def index():
     latest_draw = df.iloc[-1]
     draw_date = latest_draw['Date']
     draw_time = latest_draw['DrawTime']
-    winning_number = latest_draw['WinningNumber']
+    winning_number = latest_draw['Winning Numbers']
 
     # Generate prediction
     prediction = predict_next_numbers(df)
