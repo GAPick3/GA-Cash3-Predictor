@@ -2,23 +2,35 @@
 <html>
 <head>
     <title>GA Cash 3 Predictor</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .error { color: red; font-weight: bold; }
+        .card { border: 1px solid #ccc; padding: 20px; margin-bottom: 20px; border-radius: 10px; }
+    </style>
 </head>
 <body>
-    <h1>🎯 Georgia Cash 3 Predictor</h1>
+    <h1>Georgia Cash 3 Predictor</h1>
 
-    <h2>📅 Latest Draw</h2>
-    <p><strong>Date:</strong> {{ latest_draw.date }}</p>
-    <p><strong>Time:</strong> {{ latest_draw.draw_time }}</p>
-    <p><strong>Numbers:</strong> {{ latest_draw.numbers }}</p>
+    {% if error %}
+        <p class="error">{{ error }}</p>
+    {% else %}
+        <div class="card">
+            <h2>Latest Result</h2>
+            <p><strong>Date:</strong> {{ latest_result.date }}</p>
+            <p><strong>Draw Time:</strong> {{ latest_result.draw_time }}</p>
+            <p><strong>Winning Numbers:</strong> {{ latest_result.numbers }}</p>
+            <p><strong>Winners:</strong> {{ latest_result.winners }}</p>
+            <p><strong>Total Payout:</strong> ${{ latest_result.payout }}</p>
+        </div>
 
-    <h2>🔢 Predicted Numbers</h2>
-    <ul>
-      {% for number in predictions %}
-        <li>{{ number }}</li>
-      {% endfor %}
-    </ul>
-
-    <h2>🔥 Hot Numbers Chart</h2>
-    <img src="{{ url_for('static', filename='hot_numbers.png') }}" alt="Hot Numbers Chart">
+        <div class="card">
+            <h2>Predicted Next Numbers</h2>
+            <ul>
+                {% for number in predictions %}
+                    <li>{{ number }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
 </body>
 </html>
