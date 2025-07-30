@@ -1,27 +1,37 @@
 from flask import Flask, render_template
 import pandas as pd
-from predictor import predict_next_numbers
 import os
+from predictor import predict_next_numbers
 
 app = Flask(__name__)
 
-# Load the CSV with explicit date format
-df = pd.read_csv('data/ga_cash3_history.csv')
-df['Date'] = pd.to_datetime(df['Date'], format='%Y-%m-%d', errors='coerce')  # Explicit date format
-df = df.dropna(subset=['Date'])  # Remove rows where date parsing failed
+# Updated CSV path
+csv_path = 'data/ga_cash3_history_cleaned.csv'
 
-# Get latest result
-latest = df.sort_values(by='Date', ascending=False).iloc[0]
-latest_result = {
-    'date': latest['Date'].strftime('%Y-%m-%d'),
-    'draw_time': latest['DrawTime'],
-    'numbers': f"{int(latest['Digit1'])}{int(latest['Digit2'])}{int(latest['Digit3'])}",
-    'winners': latest['Winners'],
-    'payout': latest['TotalPayout']
-}
+if os.path.exists(csv_path):
+    df = pd.read_csv(csv_path)
+    df['Date'] = pd.to_datetime(df['Date'], format='%Y-%m-%d', errors='coerce')
+    df = df.dropna(subset=['Date'])
 
-# Get predictions
-predictions = predict_next_numbers(df)
+    latest = df.sort_values(by='Date', ascending=False).iloc[0]
+    latest_result = {
+        'date': latest['Date'].strftime('%Y-%m-%d'),
+        'draw_time': latest['DrawTime'],
+        'numbers': f"{int(latest['Digit1'])}{int(latest['Digit2'])}{int(latest['Digit3'])}",
+        'winners': latest['Winners'],
+        'payout': latest['TotalPayout']
+    }
+
+    predictions = predict_next_numbers(df)
+else:
+    latest_result = {
+        'date': 'N/A',
+        'draw_time': 'N/A',
+        'numbers': 'N/A',
+        'winners': 'N/A',
+        'payout': 'N/A'
+    }
+    predictions = ['CSV file not found. Upload required.']
 
 @app.route('/')
 def index():
