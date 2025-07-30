@@ -4,26 +4,31 @@ from predictor import predict_next_numbers
 
 app = Flask(__name__)
 
+# Load the CSV and preprocess
+df = pd.read_csv('data/ga_cash3_history.csv')
+
+# Fix: Auto-detect date format to avoid parsing warnings
+df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+
+# Sort by date and draw time (Midday, Evening, Night)
+df = df.sort_values(by=['Date', 'DrawTime'], ascending=False)
+
+# Get latest result
+latest_result = df.iloc[0]
+latest_numbers = [int(latest_result['Digit1']), int(latest_result['Digit2']), int(latest_result['Digit3'])]
+latest_draw_time = latest_result['DrawTime']
+latest_date = latest_result['Date'].strftime('%Y-%m-%d')
+
+# Get predictions using strategy engine
+predictions = predict_next_numbers(df)
+
 @app.route('/')
 def index():
-    df = pd.read_csv('data/ga_cash3_history.csv')
-
-    # Ensure Date column is treated properly
-    df['Date'] = pd.to_datetime(df['Date'])
-    df = df.sort_values(by='Date', ascending=False)
-
-    latest_draw = df.iloc[0]
-    draw_date = latest_draw['Date'].strftime('%Y-%m-%d')
-    draw_time = latest_draw['DrawTime']
-    winning_numbers = f"{int(latest_draw['Digit1'])} {int(latest_draw['Digit2'])} {int(latest_draw['Digit3'])}"
-
-    prediction = predict_next_numbers(df)
-
     return render_template('index.html',
-                           draw_date=draw_date,
-                           draw_time=draw_time,
-                           winning_numbers=winning_numbers,
-                           prediction=prediction)
+                           latest_date=latest_date,
+                           latest_draw_time=latest_draw_time,
+                           latest_numbers=latest_numbers,
+                           predictions=predictions)
 
 if __name__ == '__main__':
     app.run(debug=True)
