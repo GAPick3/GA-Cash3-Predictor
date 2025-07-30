@@ -1,63 +1,73 @@
 from flask import Flask, render_template
 import pandas as pd
-from predictor import predict_next_numbers
-from collections import Counter
 import matplotlib.pyplot as plt
-import io
-import base64
-from datetime import datetime
-import json
+import os
+from predictor import predict_next_numbers
 
 app = Flask(__name__)
 
-def generate_chart(df):
-    digits = df[['Digit1', 'Digit2', 'Digit3']].values.flatten()
-    digit_counts = Counter(digits)
+CSV_PATH = 'data/ga_cash3_history.csv'
+PLOT_PATH = 'static/draw_frequency.png'
+PREDICTION_LOG = 'data/prediction_log.csv'
 
-    fig, ax = plt.subplots()
-    ax.bar(digit_counts.keys(), digit_counts.values(), color='skyblue')
-    ax.set_title("Hot Numbers")
-    ax.set_xlabel("Digit")
-    ax.set_ylabel("Frequency")
+def load_data():
+    try:
+        df = pd.read_csv(CSV_PATH)
+        # 🔧 Fix: Parse with known format, handle bad rows
+        df['Date'] = pd.to_datetime(df['Date'], format='%m/%d/%Y', errors='coerce')
+        df = df.dropna(subset=['Date'])
+        df = df.sort_values(by='Date', ascending=False).reset_index(drop=True)
+        return df
+    except Exception as e:
+        print(f"Error loading data: {e}")
+        return pd.DataFrame()  # Return empty if failed
 
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png')
-    buf.seek(0)
-    encoded = base64.b64encode(buf.read()).decode('utf-8')
-    plt.close()
-    return encoded
+def create_chart(df):
+    try:
+        digits = pd.concat([df['Digit1'], df['Digit2'], df['Digit3']])
+        counts = digits.value_counts().sort_index()
+        plt.figure(figsize=(10, 4))
+        counts.plot(kind='bar', color='skyblue', edgecolor='black')
+        plt.title('Digit Frequency (All Positions)')
+        plt.xlabel('Digit')
+        plt.ylabel('Count')
+        plt.tight_layout()
+        os.makedirs('static', exist_ok=True)
+        plt.savefig(PLOT_PATH)
+        plt.close()
+    except Exception as e:
+        print(f"Error creating chart: {e}")
 
-def log_predictions(predictions, draw_time):
-    log_entry = {
-        "timestamp": datetime.now().isoformat(),
-        "draw_time": draw_time,
-        "predictions": predictions
-    }
-    with open("data/prediction_log.json", "a") as f:
-        f.write(json.dumps(log_entry) + "\n")
+def log_prediction(prediction):
+    try:
+        pd.DataFrame([{
+            'Date': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'Prediction': ''.join(map(str, prediction))
+        }]).to_csv(PREDICTION_LOG, mode='a', header=not os.path.exists(PREDICTION_LOG), index=False)
+    except Exception as e:
+        print(f"Failed to log prediction: {e}")
 
 @app.route('/')
 def index():
-    try:
-        df = pd.read_csv('data/ga_cash3_history.csv')
-        df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
-        df = df.dropna(subset=['Date'])
-    except Exception as e:
-        return f"Error loading data: {e}"
+    df = load_data()
+    if df.empty:
+        return "Failed to load data"
 
-    latest = df.iloc[-1]
-    latest_draw = f"{latest['Digit1']}{latest['Digit2']}{latest['Digit3']}"
-    latest_draw_time = latest['DrawTime']
-    latest_date = latest['Date'].strftime('%Y-%m-%d')
+    latest_result = df.iloc[0]
+    latest_draw = f"{int(latest_result['Digit1'])}{int(latest_result['Digit2'])}{int(latest_result['Digit3'])}"
+    latest_date = latest_result['Date'].strftime('%Y-%m-%d')
+    draw_time = latest_result['DrawTime']
 
-    predictions = predict_next_numbers(df)
-    log_predictions(predictions, latest_draw_time)
-
-    chart = generate_chart(df)
+    prediction = predict_next_numbers(df)
+    log_prediction(prediction)
+    create_chart(df)
 
     return render_template('index.html',
-                           latest_draw=latest_draw,
                            latest_date=latest_date,
-                           latest_draw_time=latest_draw_time,
-                           predictions=predictions,
-                           chart=chart)
+                           draw_time=draw_time,
+                           latest_draw=latest_draw,
+                           prediction=prediction,
+                           chart_path=PLOT_PATH)
+
+if __name__ == '__main__':
+    app.run(debug=True)
