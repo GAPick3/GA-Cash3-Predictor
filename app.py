@@ -7,17 +7,23 @@ app = Flask(__name__)
 @app.route('/')
 def index():
     df = pd.read_csv('data/ga_cash3_history.csv')
-    latest_draw = df.iloc[0]  # most recent row
-    draw_date = latest_draw['Draw Date']
-    draw_time = latest_draw['Draw Time']
-    winning_number = f"{int(latest_draw['Digit1'])}{int(latest_draw['Digit2'])}{int(latest_draw['Digit3'])}"
-    predictions = predict_next_numbers(df)
+
+    # Ensure Date column is treated properly
+    df['Date'] = pd.to_datetime(df['Date'])
+    df = df.sort_values(by='Date', ascending=False)
+
+    latest_draw = df.iloc[0]
+    draw_date = latest_draw['Date'].strftime('%Y-%m-%d')
+    draw_time = latest_draw['DrawTime']
+    winning_numbers = f"{int(latest_draw['Digit1'])} {int(latest_draw['Digit2'])} {int(latest_draw['Digit3'])}"
+
+    prediction = predict_next_numbers(df)
 
     return render_template('index.html',
                            draw_date=draw_date,
                            draw_time=draw_time,
-                           winning_number=winning_number,
-                           predictions=predictions)
+                           winning_numbers=winning_numbers,
+                           prediction=prediction)
 
 if __name__ == '__main__':
     app.run(debug=True)
