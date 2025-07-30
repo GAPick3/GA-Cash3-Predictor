@@ -1,92 +1,87 @@
-# strategy_predictor.py
-
 import pandas as pd
 import random
+import os
 from collections import defaultdict
 from datetime import datetime
 
+HISTORY_CSV = 'data/ga_cash3_history.csv'
+LOG_CSV = 'data/prediction_log.csv'
 
-# Parameters
-DECAY_FACTOR = 0.95  # How fast frequency weight decays
-NUM_PREDICTIONS = 5  # Number of predictions to generate
+# --- PARAMETERS ---
+RECENCY_DECAY_RATE = 0.99  # exponential decay for older draws
+MAX_DRAWS = 300            # max draws to consider (for performance)
 
+# --- UTILITY FUNCTIONS ---
+def load_data():
+    df = pd.read_csv(HISTORY_CSV)
+    df['Date'] = pd.to_datetime(df['Date'])
+    df = df.sort_values(by='Date', ascending=False).head(MAX_DRAWS)
+    df['Draw'] = df['Draw'].astype(str).str.zfill(3)
+    return df
 
-def load_history(csv_path='data/ga_cash3_history.csv'):
-    df = pd.read_csv(csv_path)
-    df = df.dropna()
-    df['Number'] = df['Number'].astype(str).str.zfill(3)
-    df['DrawDate'] = pd.to_datetime(df['DrawDate'])
-    return df.sort_values('DrawDate', ascending=True)
-
-
-def get_digit_position_freqs(df):
-    """Return frequency and recency-decayed frequency for each digit and position."""
-    decay_scores = [DECAY_FACTOR ** i for i in reversed(range(len(df)))]
-    pos_freq = [defaultdict(float) for _ in range(3)]
-
-    for i, (_, row) in enumerate(df.iterrows()):
-        num = row['Number']
+def compute_position_frequencies(df):
+    freqs = [defaultdict(float) for _ in range(3)]
+    for i, row in enumerate(df.itertuples(index=False), start=1):
+        decay = RECENCY_DECAY_RATE ** i
         for pos in range(3):
-            digit = int(num[pos])
-            pos_freq[pos][digit] += decay_scores[i]  # Decayed contribution
+            digit = int(row.Draw[pos])
+            freqs[pos][digit] += decay
+    return freqs
 
-    return pos_freq
-
-
-def get_transition_matrix(df):
-    """Return digit transition matrix for each position."""
+def compute_transition_probs(df):
     transitions = [defaultdict(lambda: defaultdict(int)) for _ in range(3)]
-
     for i in range(1, len(df)):
-        prev = df.iloc[i-1]['Number']
-        curr = df.iloc[i]['Number']
+        prev = df.iloc[i]['Draw']
+        curr = df.iloc[i - 1]['Draw']
         for pos in range(3):
             prev_digit = int(prev[pos])
             curr_digit = int(curr[pos])
             transitions[pos][prev_digit][curr_digit] += 1
+    # Normalize to probabilities
+    probs = [defaultdict(dict) for _ in range(3)]
+    for pos in range(3):
+        for prev_digit, next_digits in transitions[pos].items():
+            total = sum(next_digits.values())
+            probs[pos][prev_digit] = {k: v / total for k, v in next_digits.items()}
+    return probs
 
-    return transitions
-
-
-def weighted_sample(freq_dict):
-    """Randomly sample a key from dict based on weighted values."""
-    total = sum(freq_dict.values())
+def weighted_random_choice(weight_dict):
+    digits = list(weight_dict.keys())
+    weights = list(weight_dict.values())
+    total = sum(weights)
     if total == 0:
         return random.randint(0, 9)
-    r = random.uniform(0, total)
-    upto = 0
-    for k, w in freq_dict.items():
-        upto += w
-        if upto >= r:
-            return k
-    return random.choice(list(freq_dict.keys()))
+    return random.choices(digits, weights=weights, k=1)[0]
 
+def generate_prediction(freqs, transitions, last_draw):
+    prediction = []
+    for pos in range(3):
+        freq_weights = freqs[pos]
+        trans_weights = transitions[pos].get(int(last_draw[pos]), {})
+
+        # Combine weights
+        combined = defaultdict(float)
+        for digit in range(10):
+            combined[digit] = freq_weights.get(digit, 0) * 0.6 + trans_weights.get(digit, 0) * 0.4
+        prediction.append(str(weighted_random_choice(combined)))
+    return ''.join(prediction)
+
+def log_prediction(prediction, actual=None):
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    entry = {
+        'Timestamp': now,
+        'Prediction': prediction,
+        'Actual': actual if actual else ''
+    }
+    df = pd.DataFrame([entry])
+    file_exists = os.path.exists(LOG_CSV)
+    df.to_csv(LOG_CSV, mode='a', index=False, header=not file_exists)
 
 def predict_next_numbers():
-    df = load_history()
-    freq_by_position = get_digit_position_freqs(df)
-    transitions = get_transition_matrix(df)
-    last_draw = df.iloc[-1]['Number']
-
-    predictions = []
-    for _ in range(NUM_PREDICTIONS):
-        number = ''
-        for pos in range(3):
-            prev_digit = int(last_draw[pos])
-            combined_weights = defaultdict(float)
-
-            # Use transition logic + decayed frequency
-            for d in range(10):
-                combined_weights[d] = freq_by_position[pos].get(d, 0) * 0.6 + \
-                                       transitions[pos][prev_digit].get(d, 0) * 0.4
-
-            digit = weighted_sample(combined_weights)
-            number += str(digit)
-
-        predictions.append(number)
-
-    return predictions
-
-
-if __name__ == '__main__':
-    print(predict_next_numbers())
+    df = load_data()
+    freqs = compute_position_frequencies(df)
+    transitions = compute_transition_probs(df)
+    last_draw = df.iloc[0]['Draw']
+    prediction = generate_prediction(freqs, transitions, last_draw)
+    log_prediction(prediction)
+    return prediction
