@@ -3,47 +3,23 @@
 <head>
     <title>GA Cash 3 Predictor</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            padding: 30px;
-            background: #f9f9f9;
-        }
-        h1 { color: #333; }
-        .section {
-            background: #fff;
-            border: 1px solid #ddd;
-            padding: 20px;
-            margin-bottom: 30px;
-            border-radius: 8px;
-        }
-        ul { list-style: none; padding: 0; }
-        li {
-            display: inline-block;
-            background: #e3e3e3;
-            padding: 10px 15px;
-            margin: 5px;
-            font-size: 1.2em;
-            border-radius: 5px;
-        }
+        body { font-family: Arial; text-align: center; }
+        .box { margin-top: 30px; }
     </style>
 </head>
 <body>
-
-    <div class="section">
-        <h1>Latest GA Cash 3 Result</h1>
-        <p><strong>Date:</strong> {{ draw_date }}</p>
-        <p><strong>Draw Time:</strong> {{ draw_time }}</p>
-        <p><strong>Winning Number:</strong> <strong style="font-size: 1.5em;">{{ winning_number }}</strong></p>
+    <h1>Georgia Cash 3 Predictor</h1>
+    <div class="box">
+        <h2>Latest Result</h2>
+        <p><strong>{{ draw_time }} - {{ draw_date }}</strong></p>
+        <h3 style="color: green;">Winning Number: {{ winning_number }}</h3>
     </div>
 
-    <div class="section">
-        <h1>Predicted Next Numbers</h1>
-        <ul>
-            {% for number in predictions %}
-                <li>{{ number }}</li>
-            {% endfor %}
-        </ul>
+    <div class="box">
+        <h2>Predicted Next Numbers</h2>
+        {% for number in predictions %}
+            <p style="font-size: 1.5em;">🎯 {{ number }}</p>
+        {% endfor %}
     </div>
-
 </body>
 </html>
