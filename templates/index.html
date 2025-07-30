@@ -4,14 +4,21 @@
     <title>GA Cash 3 Predictor</title>
 </head>
 <body>
-    <h1>🎯 Georgia Cash 3 Prediction</h1>
+    <h1>🎯 Georgia Cash 3 Predictor</h1>
 
-    <h2>📅 Latest Draw: {{ latest_date }} @ {{ latest_time }}</h2>
-    <h3>🔢 Numbers: {{ latest_numbers[0] }}, {{ latest_numbers[1] }}, {{ latest_numbers[2] }}</h3>
+    <h2>📅 Latest Draw</h2>
+    <p><strong>Date:</strong> {{ latest_draw.date }}</p>
+    <p><strong>Time:</strong> {{ latest_draw.draw_time }}</p>
+    <p><strong>Numbers:</strong> {{ latest_draw.numbers }}</p>
 
-    <h3>🔥 Hot Numbers (Top 10 Frequency)</h3>
-    <img src="{{ chart_path }}" alt="Hot Numbers Chart" style="width:400px;">
+    <h2>🔢 Predicted Numbers</h2>
+    <ul>
+      {% for number in predictions %}
+        <li>{{ number }}</li>
+      {% endfor %}
+    </ul>
 
-    <!-- Add upcoming ML charts or pattern dashboards here -->
+    <h2>🔥 Hot Numbers Chart</h2>
+    <img src="{{ url_for('static', filename='hot_numbers.png') }}" alt="Hot Numbers Chart">
 </body>
 </html>
