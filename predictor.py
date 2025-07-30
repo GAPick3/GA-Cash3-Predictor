@@ -1,31 +1,22 @@
-import pandas as pd
-from collections import Counter
 import random
 
-def get_hot_numbers(df, top_n=10):
-    all_numbers = df['Winning Numbers'].astype(str).str.replace(r'\D', '', regex=True).str.zfill(3)
-    digits = "".join(all_numbers)
-    return [num for num, _ in Counter(digits).most_common(top_n)]
+def predict_next_numbers(df):
+    """
+    Predict next Cash 3 numbers using a frequency-based strategy.
+    You can later replace this with machine learning or deeper analytics.
+    """
+    digit_columns = ['Digit1', 'Digit2', 'Digit3']
 
-def get_last_digits(df):
-    return df['Winning Numbers'].astype(str).str[-1]
+    # Count digit frequencies
+    all_digits = df[digit_columns].values.flatten()
+    digit_counts = {i: 0 for i in range(10)}
+    for digit in all_digits:
+        digit_counts[int(digit)] += 1
 
-def get_recent_patterns(df, count=10):
-    return df['Winning Numbers'].tail(count).tolist()
+    # Sort digits by frequency (most common first)
+    sorted_digits = sorted(digit_counts.items(), key=lambda x: x[1], reverse=True)
+    most_common_digits = [str(d[0]) for d in sorted_digits[:5]]  # top 5 digits
 
-def predict_next_numbers(df, n=5):
-    hot_digits = get_hot_numbers(df)
-    last_digits = get_last_digits(df).value_counts().index.tolist()
-    recent_patterns = get_recent_patterns(df)
-
-    predictions = set()
-
-    while len(predictions) < n:
-        # Generate a 3-digit number from hot digits and recent end digits
-        num = ''.join(random.choices(hot_digits, k=2) + random.choices(last_digits, k=1))
-        num = ''.join(sorted(num))  # Normalize order to reflect common draw behavior
-
-        if num not in recent_patterns:
-            predictions.add(num)
-
-    return list(predictions)
+    # Randomly pick 3 digits from most common for prediction
+    prediction = random.sample(most_common_digits, 3)
+    return ' '.join(prediction)
