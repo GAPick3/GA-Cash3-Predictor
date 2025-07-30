@@ -1,42 +1,31 @@
 import pandas as pd
-import numpy as np
-from collections import defaultdict
+from collections import Counter
+import random
 
-def apply_exponential_decay(frequencies, decay_rate=0.98):
-    decayed = defaultdict(float)
-    for i, draw in enumerate(reversed(frequencies)):
-        weight = decay_rate ** i
-        for pos, digit in enumerate(draw):
-            decayed[(pos, digit)] += weight
-    return decayed
+def get_hot_numbers(df, top_n=10):
+    all_numbers = df['Winning Numbers'].astype(str).str.replace(r'\D', '', regex=True).str.zfill(3)
+    digits = "".join(all_numbers)
+    return [num for num, _ in Counter(digits).most_common(top_n)]
 
-def build_transition_matrix(draws):
-    transitions = [defaultdict(lambda: defaultdict(int)) for _ in range(3)]
-    for i in range(1, len(draws)):
-        prev = draws[i - 1]
-        curr = draws[i]
-        for pos in range(3):
-            transitions[pos][prev[pos]][curr[pos]] += 1
-    return transitions
+def get_last_digits(df):
+    return df['Winning Numbers'].astype(str).str[-1]
 
-def predict_next_numbers(df):
-    draws = df['WinningNumber'].astype(str).str.zfill(3).tolist()
-    
-    # Digit frequencies (with exponential decay)
-    decayed_freq = apply_exponential_decay(draws)
-    
-    # Transition matrix from prior draws
-    transitions = build_transition_matrix(draws)
+def get_recent_patterns(df, count=10):
+    return df['Winning Numbers'].tail(count).tolist()
 
-    last_draw = draws[-1]
-    prediction = ""
-    for pos in range(3):
-        scores = {}
-        for digit in map(str, range(10)):
-            freq_score = decayed_freq[(pos, digit)]
-            trans_score = transitions[pos][last_draw[pos]].get(digit, 0)
-            scores[digit] = 0.6 * freq_score + 0.4 * trans_score
-        best_digit = max(scores, key=scores.get)
-        prediction += best_digit
+def predict_next_numbers(df, n=5):
+    hot_digits = get_hot_numbers(df)
+    last_digits = get_last_digits(df).value_counts().index.tolist()
+    recent_patterns = get_recent_patterns(df)
 
-    return prediction
+    predictions = set()
+
+    while len(predictions) < n:
+        # Generate a 3-digit number from hot digits and recent end digits
+        num = ''.join(random.choices(hot_digits, k=2) + random.choices(last_digits, k=1))
+        num = ''.join(sorted(num))  # Normalize order to reflect common draw behavior
+
+        if num not in recent_patterns:
+            predictions.add(num)
+
+    return list(predictions)
