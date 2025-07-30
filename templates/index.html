@@ -3,42 +3,47 @@
 <head>
     <title>GA Cash 3 Predictor</title>
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
-        h1 { color: #2c3e50; }
-        .box { border: 1px solid #ccc; padding: 15px; margin-top: 20px; border-radius: 8px; }
+        body {
+            font-family: Arial, sans-serif;
+            padding: 30px;
+            background: #f9f9f9;
+        }
+        h1 { color: #333; }
+        .section {
+            background: #fff;
+            border: 1px solid #ddd;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+        }
+        ul { list-style: none; padding: 0; }
+        li {
+            display: inline-block;
+            background: #e3e3e3;
+            padding: 10px 15px;
+            margin: 5px;
+            font-size: 1.2em;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body>
-    <h1>Georgia Cash 3 Predictor</h1>
-    
-    <div class="box">
-        <h2>Latest Draw</h2>
-        <p><strong>Date:</strong> {{ latest_date }}</p>
-        <p><strong>Time:</strong> {{ latest_time }}</p>
-        <p><strong>Winning Number:</strong> {{ winning_number }}</p>
+
+    <div class="section">
+        <h1>Latest GA Cash 3 Result</h1>
+        <p><strong>Date:</strong> {{ draw_date }}</p>
+        <p><strong>Draw Time:</strong> {{ draw_time }}</p>
+        <p><strong>Winning Number:</strong> <strong style="font-size: 1.5em;">{{ winning_number }}</strong></p>
     </div>
 
-    <div class="box">
-        <h2>Prediction</h2>
-        <p><strong>Predicted Number:</strong> {{ prediction }}</p>
-    </div>
-
-    <div class="box">
-        <h2>Recent Predictions</h2>
-        <table border="1" cellpadding="5">
-            <tr>
-                <th>Date</th>
-                <th>Time</th>
-                <th>Prediction</th>
-            </tr>
-            {% for row in prediction_log.itertuples() %}
-            <tr>
-                <td>{{ row.Date }}</td>
-                <td>{{ row.DrawTime }}</td>
-                <td>{{ row.Prediction }}</td>
-            </tr>
+    <div class="section">
+        <h1>Predicted Next Numbers</h1>
+        <ul>
+            {% for number in predictions %}
+                <li>{{ number }}</li>
             {% endfor %}
-        </table>
+        </ul>
     </div>
+
 </body>
 </html>
