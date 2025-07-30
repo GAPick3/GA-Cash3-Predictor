@@ -2,55 +2,41 @@ from flask import Flask, render_template
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
+from predictor import predict_next_numbers
 
 app = Flask(__name__)
 
 @app.route('/')
-def home():
-    try:
-        # Load cleaned data
-        data = pd.read_csv('data/ga_cash3_history_cleaned.csv')
-        data = data.dropna(subset=['Digit1', 'Digit2', 'Digit3'])
+def index():
+    # Load cleaned data
+    df = pd.read_csv('data/ga_cash3_history_cleaned.csv')
 
-        # Ensure date is in correct format
-        data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
-        data = data.sort_values(by='Date', ascending=False)
+    # Ensure correct column types
+    df['Date'] = pd.to_datetime(df['Date'])
+    df[['Digit1', 'Digit2', 'Digit3']] = df[['Digit1', 'Digit2', 'Digit3']].astype(int)
 
-        # Get latest draw
-        latest_draw = data.iloc[0]
-        latest_date = latest_draw['Date'].strftime('%Y-%m-%d') if pd.notnull(latest_draw['Date']) else 'Unknown'
-        latest_time = latest_draw.get('DrawTime', 'Unknown')
-        latest_numbers = [int(latest_draw['Digit1']), int(latest_draw['Digit2']), int(latest_draw['Digit3'])]
+    # Get latest draw
+    latest = df.sort_values(by='Date', ascending=False).iloc[0]
+    latest_draw = {
+        'date': latest['Date'].strftime('%Y-%m-%d'),
+        'draw_time': latest['DrawTime'],
+        'numbers': f"{latest['Digit1']}{latest['Digit2']}{latest['Digit3']}"
+    }
 
-        # Get top 10 hot digits
-        digits = pd.concat([data['Digit1'], data['Digit2'], data['Digit3']])
-        hot_numbers = digits.value_counts().head(10).sort_index()
+    # Generate hot numbers chart
+    digits = pd.concat([df['Digit1'], df['Digit2'], df['Digit3']])
+    freq = digits.value_counts().sort_index()
+    plt.figure(figsize=(10, 5))
+    plt.bar(freq.index.astype(str), freq.values, color='orange')
+    plt.title('Hot Numbers')
+    plt.xlabel('Digit')
+    plt.ylabel('Frequency')
+    plt.tight_layout()
+    chart_path = os.path.join('static', 'hot_numbers.png')
+    plt.savefig(chart_path)
+    plt.close()
 
-        # Plot hot number frequency chart
-        plt.figure(figsize=(6, 4))
-        hot_numbers.sort_values().plot(kind='bar', color='orange')
-        plt.title('🔥 Top 10 Hot Numbers')
-        plt.xlabel('Number')
-        plt.ylabel('Frequency')
-        plt.tight_layout()
+    # Predict next numbers
+    predictions = predict_next_numbers(df)
 
-        # Save chart to static directory
-        chart_path = 'static/hot_numbers.png'
-        if not os.path.exists('static'):
-            os.makedirs('static')
-        plt.savefig(chart_path)
-        plt.close()
-
-        return render_template(
-            'index.html',
-            latest_date=latest_date,
-            latest_time=latest_time,
-            latest_numbers=latest_numbers,
-            chart_path=chart_path
-        )
-
-    except Exception as e:
-        return f"<h2>Error loading page: {str(e)}</h2>"
-
-if __name__ == '__main__':
-    app.run(debug=True)
+    return render_template('index.html', latest_draw=latest_draw, predictions=predictions)
