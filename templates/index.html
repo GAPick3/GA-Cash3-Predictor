@@ -1,17 +1,24 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
 <head>
     <title>GA Cash 3 Predictor</title>
 </head>
 <body>
-    <h1>GA Cash 3 Predictor</h1>
-    
-    <h2>Latest Draw</h2>
-    <p><strong>Date:</strong> {{ draw_date }}</p>
-    <p><strong>Draw Time:</strong> {{ draw_time }}</p>
-    <p><strong>Winning Numbers:</strong> {{ winning_numbers }}</p>
+    <h1>Georgia Cash 3 Predictor</h1>
 
-    <h2>Predicted Next Numbers</h2>
-    <p><strong>Prediction:</strong> {{ prediction }}</p>
+    <h2>Latest Draw</h2>
+    <p><strong>Date:</strong> {{ latest_date }}</p>
+    <p><strong>Time:</strong> {{ latest_draw_time }}</p>
+    <p><strong>Numbers:</strong> {{ latest_draw }}</p>
+
+    <h2>Predicted Numbers</h2>
+    <ul>
+        {% for prediction in predictions %}
+            <li>{{ prediction[0] }}{{ prediction[1] }}{{ prediction[2] }}</li>
+        {% endfor %}
+    </ul>
+
+    <h2>Hot Numbers Chart</h2>
+    <img src="data:image/png;base64,{{ chart }}" alt="Hot Numbers Chart">
 </body>
 </html>
