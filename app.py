@@ -5,7 +5,7 @@ import plotly
 import json
 import os
 from datetime import datetime
-from predictor import predict_next_numbers
+from predictor import predict_next_numbers, evaluate_accuracy
 
 app = Flask(__name__)
 
@@ -14,7 +14,6 @@ HISTORY_FILE = "data/prediction_history.json"
 
 def load_data():
     df = pd.read_csv(CSV_FILE)
-    # Set correct format according to your actual date (adjust if needed)
     df['Date'] = pd.to_datetime(df['Date'], format='%m/%d/%Y', errors='coerce')
     df = df.dropna(subset=['Date'])
     df = df.sort_values(by='Date', ascending=False)
@@ -86,12 +85,14 @@ def index():
 
     last_prediction = get_last_prediction()
     chart_json = create_interactive_chart(df)
+    accuracy = evaluate_accuracy(df)
 
     return render_template("index.html",
                            latest_result=latest_result,
                            prediction=prediction,
                            last_prediction=last_prediction,
-                           chart_json=chart_json)
+                           chart_json=chart_json,
+                           accuracy=accuracy)
 
 if __name__ == '__main__':
     app.run(debug=True)
