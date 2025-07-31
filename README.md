@@ -1,18 +1,15 @@
-# GA Cash 3 Predictor 🎲
+## 📁 Project Structure
 
-This is a Flask web application that predicts the most common Georgia Cash 3 lottery numbers based on historical data. It displays the latest draw results and lists the most frequently occurring 3-digit combinations.
+# GA-Cash3-Predictor 🎲
 
----
+A lightweight Flask dashboard that ingests Georgia Cash 3 historical draw data, shows the latest draw, and summarizes frequency-based triplets (most/least common and digit frequencies). Designed for transparency—draws are independent; historical data is descriptive, not predictive.
 
 ## 📌 Features
 
-- Displays the latest Cash 3 draw (date, time, winning numbers)
-- Predicts the top 5 most frequent number combinations
-- Uses cleaned data from a CSV file
-- Simple UI using HTML templates
-- Deployable to Render or any cloud platform
+- Loads cleaned Cash 3 results CSV (`Date`, `Draw`, `DrawTime`, `Digit1`, `Digit2`, `Digit3`)
+- Displays latest draw, scheduled time, and past combination statistics
+- Provides JSON endpoints for programmatic access
+- Automated updates 30 minutes after each draw via GitHub Actions
+- Disclaimer clarifying independence of draws
 
----
-
-## 📁 Project Structure
-
+## Required Files (repo layout)
