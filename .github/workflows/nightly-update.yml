@@ -1,0 +1,32 @@
+name: Nightly Predictor Update
+
+on:
+  schedule:
+    - cron: '0 4 * * *'  # Runs every day at 4 AM UTC
+  workflow_dispatch:     # Allow manual run
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run prediction + accuracy refresh
+        run: python update_predictions.py
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add static/last_prediction.json static/accuracy_history.json
+          git commit -m "Auto-update prediction and accuracy"
+          git push
