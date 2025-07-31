@@ -4,41 +4,49 @@
     <title>GA Cash 3 Predictor</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <style>
-        body { font-family: Arial; background-color: #111; color: #eee; padding: 20px; }
+        body { font-family: Arial, sans-serif; background-color: #111; color: #eee; padding: 20px; }
         .section { margin-bottom: 30px; }
-        .box { background: #222; padding: 15px; border-radius: 10px; }
+        .card { background: #222; padding: 20px; border-radius: 12px; box-shadow: 0 0 10px #00ffcc33; }
         h1, h2, h3 { color: #00ffcc; }
     </style>
 </head>
 <body>
     <h1>Georgia Cash 3 Predictor</h1>
 
-    <div class="section box">
-        <h2>Latest Result ({{ latest_result.DrawTime }} Draw)</h2>
-        <p><strong>Date:</strong> {{ latest_result.Date }}</p>
-        <p><strong>Winning Numbers:</strong> {{ latest_result.Digit1 }} {{ latest_result.Digit2 }} {{ latest_result.Digit3 }}</p>
+    {% if error %}
+        <div class="section card"><p style="color: red;">{{ error }}</p></div>
+    {% else %}
+
+    <div class="section card">
+        <h2>Latest Result ({{ latest_result.draw_time }})</h2>
+        <p><strong>Date:</strong> {{ latest_result.date }}</p>
+        <p><strong>Winning Numbers:</strong> {{ latest_result.numbers[0] }} {{ latest_result.numbers[1] }} {{ latest_result.numbers[2] }}</p>
+        <p><strong>Winners:</strong> {{ latest_result.winners }}</p>
+        <p><strong>Total Payout:</strong> ${{ latest_result.payout }}</p>
     </div>
 
-    <div class="section box">
+    <div class="section card">
         <h2>Today's Prediction</h2>
         <p><strong>Predicted Numbers:</strong> {{ prediction[0] }} {{ prediction[1] }} {{ prediction[2] }}</p>
     </div>
 
     {% if last_prediction %}
-    <div class="section box">
+    <div class="section card">
         <h2>Compare with Last Prediction</h2>
         <p><strong>Previous Prediction:</strong> {{ last_prediction.prediction[0] }} {{ last_prediction.prediction[1] }} {{ last_prediction.prediction[2] }}</p>
-        <p><strong>Generated At:</strong> {{ last_prediction.date }}</p>
+        <p><strong>Actual Draw:</strong> {{ last_prediction.actual[0] }} {{ last_prediction.actual[1] }} {{ last_prediction.actual[2] }}</p>
+        <p><strong>Generated On:</strong> {{ last_prediction.timestamp }}</p>
     </div>
     {% endif %}
 
-    <div class="section box">
-        <h2>Interactive Draw Sum Chart</h2>
+    <div class="section card">
+        <h2>Interactive Chart</h2>
         <div id="chart"></div>
         <script>
-            var chartData = {{ chart_json|safe }};
-            Plotly.newPlot('chart', chartData.data, chartData.layout);
+            const chart = {{ chart_json | safe }};
+            Plotly.newPlot('chart', chart.data, chart.layout);
         </script>
     </div>
+    {% endif %}
 </body>
 </html>
