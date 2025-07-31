@@ -1,5 +1,5 @@
-flask
-pandas
+flask>=3.0
+pandas>=2.0
 gunicorn
 requests
 beautifulsoup4
