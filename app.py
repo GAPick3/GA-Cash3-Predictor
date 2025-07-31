@@ -1,6 +1,6 @@
 from flask import Flask, render_template
 import pandas as pd
-import os
+from predictor import predict_next_numbers
 
 app = Flask(__name__)
 
@@ -8,23 +8,22 @@ app = Flask(__name__)
 def index():
     data_path = "data/ga_cash3_history_cleaned.csv"
 
-    df = pd.read_csv(
-        data_path,
-        parse_dates=["Date"],
-        date_format="%m/%d/%y"  # ✅ NEW way using date_format
-    )
+    print("Pandas version:", pd.__version__)  # Debugging
 
-    df.sort_values("Date", ascending=False, inplace=True)
+    df = pd.read_csv(data_path, dtype={"Date": str})
+    df["Date"] = pd.to_datetime(df["Date"], format="%m/%d/%y", errors="raise")
+
+    df = df.sort_values(by="Date", ascending=False)
     latest_result = df.iloc[0]
 
-    # Reconstruct full number
-    latest_number = f"{int(latest_result['Digit1'])}{int(latest_result['Digit2'])}{int(latest_result['Digit3'])}"
+    prediction = predict_next_numbers(df)
 
     return render_template(
         "index.html",
         latest_date=latest_result["Date"].strftime("%B %d, %Y"),
-        latest_number=latest_number,
-        draw_time=latest_result["DrawTime"]
+        winning_numbers=f"{latest_result['Digit1']}{latest_result['Digit2']}{latest_result['Digit3']}",
+        draw_time=latest_result["DrawTime"],
+        prediction=prediction
     )
 
 if __name__ == "__main__":
