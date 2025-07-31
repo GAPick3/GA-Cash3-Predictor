@@ -1,18 +1,18 @@
-# update_predictions.py
-
 import pandas as pd
+from predictions import predict_next_numbers, evaluate_accuracy
 import json
-from predictor import predict_next_numbers, evaluate_accuracy
 
-df = pd.read_csv("data/ga_cash3_history_cleaned.csv")
-df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
-df = df.dropna(subset=['Date'])
-df = df.sort_values(by='Date')
+df = pd.read_csv("ga_cash3_history_cleaned.csv")
+df['Date'] = pd.to_datetime(df['Date'], format='%Y-%m-%d', errors='coerce')
+df = df.dropna()
+df = df.sort_values(by="Date")
 
+# Save prediction
 prediction = predict_next_numbers(df)
-with open("static/last_prediction.json", "w") as f:
+with open("latest_prediction.json", "w") as f:
     json.dump(prediction, f)
 
-accuracy = evaluate_accuracy(df, n=30)
-with open("static/accuracy_history.json", "w") as f:
-    json.dump(accuracy["history"], f)
+# Save accuracy
+accuracy_data = evaluate_accuracy(df, 30)
+with open("latest_accuracy.json", "w") as f:
+    json.dump(accuracy_data, f)
