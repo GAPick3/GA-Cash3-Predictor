@@ -1,0 +1,40 @@
+name: Update GA Cash 3 Results
+
+on:
+  schedule:
+    # Midday draw (12:20 PM ET) +30m => 12:50 PM ET = 16:50 UTC
+    - cron: '50 16 * * *'
+    # Evening draw (6:59 PM ET) +30m => 7:29 PM ET = 23:29 UTC
+    - cron: '29 23 * * *'
+    # Night draw (11:34 PM ET) +30m => 12:04 AM ET next day = 04:04 UTC
+    - cron: '4 4 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install pandas requests beautifulsoup4
+
+      - name: Run update script
+        run: python update_csv.py
+
+      - name: Commit updated CSV if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "No changes to commit"
+          else
+            git add data/ga_cash3_history.csv
+            git commit -m "🔄 Auto-update Cash3 CSV"
+            git push
+          fi
