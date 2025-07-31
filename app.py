@@ -1,47 +1,36 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 import pandas as pd
+from predictions import predict_next_numbers, evaluate_accuracy
 import json
-import os
 
 app = Flask(__name__)
 
 @app.route('/')
 def index():
-    csv_path = 'data/ga_cash3_history_cleaned.csv'
-    pred_path = 'static/last_prediction.json'
-    acc_path = 'static/accuracy_history.json'
+    try:
+        df = pd.read_csv("ga_cash3_history_cleaned.csv")
+        df['Date'] = pd.to_datetime(df['Date'], format='%Y-%m-%d', errors='coerce')
+        df = df.dropna(subset=["Date", "Digit1", "Digit2", "Digit3"])
+        df = df.sort_values(by="Date")
 
-    if not os.path.exists(csv_path) or os.stat(csv_path).st_size == 0:
-        return render_template("index.html", error="History data not available.")
+        prediction = predict_next_numbers(df)
+        filter_value = int(request.args.get("filter", 30))
+        accuracy_data = evaluate_accuracy(df, filter_value)
 
-    df = pd.read_csv(csv_path)
-    if df.empty:
-        return render_template("index.html", error="No draw data found.")
+        chart_data = [
+            {"date": entry["date"], "accuracy": 1 if entry["match"] in ["Exact", "AnyOrder"] else 0}
+            for entry in accuracy_data["history"]
+        ]
 
-    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
-    df = df.dropna(subset=['Date'])
-    df = df.sort_values(by='Date')
-    latest = df.iloc[-1].to_dict()
+        return render_template(
+            "index.html",
+            prediction=prediction,
+            accuracy=accuracy_data,
+            chart_data=json.dumps(chart_data),
+            filter_value=filter_value
+        )
+    except Exception as e:
+        return f"Error: {e}", 500
 
-    prediction = [0, 0, 0]
-    if os.path.exists(pred_path):
-        with open(pred_path) as f:
-            prediction = json.load(f)
-
-    last_prediction = prediction
-    accuracy_data = []
-    summary = {"total": 0, "exact": 0, "any_order": 0}
-
-    if os.path.exists(acc_path):
-        with open(acc_path) as f:
-            accuracy_data = json.load(f)
-            summary["total"] = len(accuracy_data)
-            summary["exact"] = sum(1 for m in accuracy_data if m["match"] == "Exact")
-            summary["any_order"] = sum(1 for m in accuracy_data if m["match"] == "AnyOrder")
-
-    return render_template("index.html",
-                           latest_result=latest,
-                           prediction=prediction,
-                           last_prediction=last_prediction,
-                           accuracy=summary,
-                           accuracy_history=accuracy_data)
+if __name__ == '__main__':
+    app.run(debug=True)
