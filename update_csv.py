@@ -1,251 +1,207 @@
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-from datetime import datetime, time, timedelta
+from datetime import datetime, timedelta
 import os
-import sys
-from zoneinfo import ZoneInfo
+import time
 import pdfplumber
-import re
+import smtplib
+from email.message import EmailMessage
 
 CSV_PATH = "data/ga_cash3_history.csv"
-PDF_FALLBACK_PATH = "data/latest.pdf"  # place the latest GA Cash 3 winning numbers PDF here
+PDF_FALLBACK = "data/latest.pdf"  # ensure this exists in repo as a copy of the official PDF
 
-# Scheduled draw times in Georgia (Eastern) local time
-DRAW_SCHEDULE = {
-    "Midday": time(12, 20),   # 12:20 PM ET
-    "Evening": time(18, 59),  # 6:59 PM ET
-    "Night": time(23, 34),    # 11:34 PM ET
+# Known draw times (Eastern Time)
+DRAW_TIMES = {
+    "Midday": "12:20 PM",
+    "Evening": "6:59 PM",
+    "Night": "11:34 PM"
 }
 
-EASTERN = ZoneInfo("America/New_York")
-UTC = ZoneInfo("UTC")
+WEB_URL = "https://www.lotterypost.com/results/georgia/cash-3"
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)"
+    " Chrome/115.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+    " Version/16.1 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko)"
+    " Chrome/115.0.0.0 Safari/537.36",
+]
+
+MAX_WEB_ATTEMPTS = 3
+BACKOFF_BASE = 2  # exponential backoff multiplier
 
 
-def fetch_latest_results_html():
-    url = "https://www.lotterypost.com/results/georgia/cash-3"
-    headers = {
-        "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                       "AppleWebKit/537.36 (KHTML, like Gecko) "
-                       "Chrome/120.0.0.0 Safari/537.36"),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Referer": "https://www.google.com/",
-    }
-
-    session = requests.Session()
-    session.headers.update(headers)
-
-    max_retries = 3
-    for attempt in range(1, max_retries + 1):
+def fetch_from_web():
+    headers = {"User-Agent": USER_AGENTS[0]}
+    for attempt in range(1, MAX_WEB_ATTEMPTS + 1):
+        headers["User-Agent"] = USER_AGENTS[(attempt - 1) % len(USER_AGENTS)]
+        print(f"🔎 Fetching draw page (attempt {attempt}): {WEB_URL} with UA={headers['User-Agent']}")
         try:
-            print(f"🔎 Fetching draw page (attempt {attempt}): {url}")
-            r = session.get(url, timeout=10)
-            if r.status_code == 403:
-                raise requests.exceptions.HTTPError("403 Forbidden")
-            r.raise_for_status()
-            return r.text
+            resp = requests.get(WEB_URL, headers=headers, timeout=10)
+            if resp.status_code == 403:
+                raise requests.HTTPError(f"{resp.status_code} Forbidden")
+            resp.raise_for_status()
+            soup = BeautifulSoup(resp.text, "html.parser")
+            rows = soup.select("table.results tbody tr")
+            parsed = []
+            for row in rows:
+                try:
+                    cols = row.find_all("td")
+                    if len(cols) < 3:
+                        continue
+                    date_str = cols[0].text.strip()
+                    draw_label = cols[1].text.strip()
+                    number_text = cols[2].text.strip()
+
+                    draw_date = datetime.strptime(date_str, "%m/%d/%Y").date()
+                    numbers = [int(n) for n in number_text.split() if n.isdigit()]
+                    if len(numbers) != 3:
+                        continue
+                    if draw_label not in DRAW_TIMES:
+                        continue
+                    full_time = DRAW_TIMES[draw_label]
+                    parsed.append({
+                        "Date": draw_date.isoformat(),
+                        "Draw": draw_label,
+                        "DrawTime": full_time,
+                        "Digit1": numbers[0],
+                        "Digit2": numbers[1],
+                        "Digit3": numbers[2],
+                    })
+                except Exception as e:
+                    print(f"⚠️ row parse skip: {e}")
+            if parsed:
+                return parsed
+            else:
+                print("ℹ️ Web fetch succeeded but no valid rows parsed.")
+                return []
         except Exception as e:
             print(f"⚠️ Fetch attempt {attempt} failed: {e}")
-            if attempt < max_retries:
-                backoff = 2 ** attempt
-                print(f"   retrying after {backoff}s...")
-                import time as _t
-                _t.sleep(backoff)
-            else:
-                print("❌ All web fetch attempts failed.")
-                return None
+            if attempt < MAX_WEB_ATTEMPTS:
+                sleep = BACKOFF_BASE ** attempt
+                print(f"   retrying after {sleep}s...")
+                time.sleep(sleep)
+    print("❌ All web fetch attempts failed.")
+    return None  # signal failure to trigger fallback
 
 
-def parse_draws_from_html(html):
-    if not html:
-        return []
-    soup = BeautifulSoup(html, "html.parser")
-    rows = soup.select("table.results tbody tr")
-    parsed = []
-    for row in rows:
-        try:
-            cols = row.find_all("td")
-            if len(cols) < 3:
-                continue
-            date_str = cols[0].text.strip()
-            draw_label = cols[1].text.strip().title()
-            number_text = cols[2].text.strip()
-
-            if draw_label not in DRAW_SCHEDULE:
-                continue
-
-            draw_date = datetime.strptime(date_str, "%m/%d/%Y").date()
-            numbers = [n for n in number_text.split() if n.isdigit()]
-            if len(numbers) != 3:
-                continue
-
-            parsed.append({
-                "Date": draw_date,
-                "Draw": draw_label,
-                "Digit1": int(numbers[0]),
-                "Digit2": int(numbers[1]),
-                "Digit3": int(numbers[2]),
-                "Source": "web",
-            })
-        except Exception as e:
-            print(f"⚠️ HTML parse row skipped: {e}")
-            continue
-    return parsed
-
-
-def parse_draws_from_pdf(pdf_path):
-    if not os.path.exists(pdf_path):
-        print("⚠️ PDF fallback file not found:", pdf_path)
+def fetch_from_pdf():
+    if not os.path.exists(PDF_FALLBACK):
+        print(f"❌ PDF fallback missing: {PDF_FALLBACK}")
         return []
 
-    print(f"📄 Falling back to PDF parsing ({pdf_path})")
+    print(f"📄 Falling back to PDF parsing ({PDF_FALLBACK})")
     parsed = []
     try:
-        with pdfplumber.open(pdf_path) as pdf:
-            # This assumes that the PDF contains a table similar to the sample:
-            # Date | Draw | Winning Numbers ...
+        with pdfplumber.open(PDF_FALLBACK) as pdf:
+            # assuming all data on first page
             for page in pdf.pages:
-                # Try to extract table data
-                tables = page.extract_tables()
-                if not tables:
-                    # fallback to line-based regex scanning
-                    text = page.extract_text() or ""
-                    lines = text.splitlines()
-                    for line in lines:
-                        # Example line: "07/25/2025 Night 3 7 7 808 $126,139"
-                        match = re.match(
-                            r"(\d{2}/\d{2}/\d{4})\s+(Midday|Evening|Night)\s+([0-9])\s+([0-9])\s+([0-9])",
-                            line,
-                            re.IGNORECASE,
-                        )
-                        if match:
-                            date_str, draw_label, d1, d2, d3 = match.groups()
-                            draw_date = datetime.strptime(date_str, "%m/%d/%Y").date()
-                            draw_label = draw_label.title()
-                            if draw_label not in DRAW_SCHEDULE:
-                                continue
-                            parsed.append({
-                                "Date": draw_date,
-                                "Draw": draw_label,
-                                "Digit1": int(d1),
-                                "Digit2": int(d2),
-                                "Digit3": int(d3),
-                                "Source": "pdf",
-                            })
-                else:
-                    for table in tables:
-                        # Heuristic: first row might be headers
-                        for row in table[1:]:  # skip header
-                            try:
-                                if len(row) < 4:
-                                    continue
-                                date_str = row[0].strip()
-                                draw_label = row[1].strip().title()
-                                # Winning numbers might be in 3 separate columns or one; attempt both
-                                digits = []
-                                if row[2] and re.fullmatch(r"\d", row[2].strip()):
-                                    digits.append(row[2].strip())
-                                if row[3] and re.fullmatch(r"\d", row[3].strip()):
-                                    digits.append(row[3].strip())
-                                if len(row) >= 5 and row[4] and re.fullmatch(r"\d", row[4].strip()):
-                                    digits.append(row[4].strip())
-                                if len(digits) != 3:
-                                    # maybe they are in a combined cell like "7 8 6"
-                                    combined = row[2] or ""
-                                    parts = [p for p in combined.split() if p.isdigit()]
-                                    if len(parts) == 3:
-                                        digits = parts
-                                if len(digits) != 3:
-                                    continue
-                                draw_date = datetime.strptime(date_str, "%m/%d/%Y").date()
-                                if draw_label not in DRAW_SCHEDULE:
-                                    continue
-                                parsed.append({
-                                    "Date": draw_date,
-                                    "Draw": draw_label,
-                                    "Digit1": int(digits[0]),
-                                    "Digit2": int(digits[1]),
-                                    "Digit3": int(digits[2]),
-                                    "Source": "pdf",
-                                })
-                            except Exception as e:
-                                print(f"⚠️ PDF row parse issue: {e}")
-                                continue
+                table = page.extract_table()
+                if not table:
+                    continue
+                headers = [h.strip() for h in table[0]]
+                # Expect header like: Date, Draw, Winning Numbers, ...
+                for row in table[1:]:
+                    try:
+                        row_dict = dict(zip(headers, row))
+                        date_raw = row_dict.get("Date", "").strip()
+                        draw_label = row_dict.get("Draw", "").strip()
+                        winning = row_dict.get("Winning Numbers", "").strip()
+                        if not date_raw or not draw_label or not winning:
+                            continue
+                        # parse date in MM/DD/YYYY or other (from sample appears MM/DD/YYYY)
+                        draw_date = datetime.strptime(date_raw, "%m/%d/%Y").date()
+                        numbers = [int(n) for n in winning.split() if n.isdigit()]
+                        if len(numbers) != 3:
+                            continue
+                        if draw_label not in DRAW_TIMES:
+                            # sometimes PDF uses lowercase or different casing
+                            normalized = draw_label.title()
+                        else:
+                            normalized = draw_label
+                        full_time = DRAW_TIMES.get(normalized, "")
+                        parsed.append({
+                            "Date": draw_date.isoformat(),
+                            "Draw": normalized,
+                            "DrawTime": full_time,
+                            "Digit1": numbers[0],
+                            "Digit2": numbers[1],
+                            "Digit3": numbers[2],
+                        })
+                    except Exception as e:
+                        print(f"⚠️ PDF row skip: {e}")
     except Exception as e:
         print(f"❌ Error opening/parsing PDF: {e}")
     return parsed
 
 
-def is_time_to_add(draw_date, draw_label):
-    scheduled_time = DRAW_SCHEDULE.get(draw_label)
-    if not scheduled_time:
-        return False
-    local_dt = datetime.combine(draw_date, scheduled_time).replace(tzinfo=EASTERN)
-    allowed_dt = local_dt + timedelta(minutes=30)
-    now_utc = datetime.now(tz=UTC)
-    return now_utc >= allowed_dt.astimezone(UTC)
-
-
-def append_new_draws():
-    os.makedirs("data", exist_ok=True)
-
+def load_existing_df():
     if os.path.exists(CSV_PATH):
-        df_existing = pd.read_csv(CSV_PATH, parse_dates=["Date"])
-        df_existing.rename(columns=lambda c: c.strip(), inplace=True)
-    else:
-        df_existing = pd.DataFrame(columns=["Date", "Draw", "DrawTime", "Digit1", "Digit2", "Digit3"])
+        return pd.read_csv(CSV_PATH)
+    return pd.DataFrame(columns=["Date", "Draw", "DrawTime", "Digit1", "Digit2", "Digit3"])
 
-    # Build existing keys (Date as date, Draw)
-    existing_keys = set(
-        df_existing[["Date", "Draw"]]
-        .dropna()
-        .apply(lambda r: (pd.to_datetime(r["Date"]).date(), r["Draw"]), axis=1)
-        .tolist()
-    )
 
-    # Try web fetch first
-    html = fetch_latest_results_html()
-    parsed = parse_draws_from_html(html)
-    if not parsed:
-        # Fallback to PDF
-        parsed = parse_draws_from_pdf(PDF_FALLBACK_PATH)
+def merge_and_save(new_rows):
+    df = load_existing_df()
+    existing = set(df[["Date", "Draw"]].apply(tuple, axis=1))
+    added = 0
+    for row in new_rows:
+        key = (row["Date"], row["Draw"])
+        if key not in existing:
+            df = pd.concat([pd.DataFrame([row]), df], ignore_index=True)
+            added += 1
+    if added:
+        df.sort_values(by=["Date", "Draw"], ascending=[False, False], inplace=True)
+        df.to_csv(CSV_PATH, index=False)
+    return added, df
 
-    if not parsed:
-        print("ℹ️ No new draw data available from any source.")
+
+def send_email(subject: str, body: str):
+    # optional: configure via env vars
+    smtp_server = os.getenv("SMTP_SERVER")
+    smtp_port = int(os.getenv("SMTP_PORT", "587"))
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_password = os.getenv("SMTP_PASSWORD")
+    recipient = os.getenv("EMAIL_TO")
+    if not all([smtp_server, smtp_user, smtp_password, recipient]):
+        print("ℹ️ Email not sent: incomplete SMTP/recipient configuration.")
+        return
+    try:
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"] = smtp_user
+        msg["To"] = recipient
+        msg.set_content(body)
+
+        with smtplib.SMTP(smtp_server, smtp_port, timeout=10) as smtp:
+            smtp.starttls()
+            smtp.login(smtp_user, smtp_password)
+            smtp.send_message(msg)
+        print("📧 Notification email sent.")
+    except Exception as e:
+        print(f"❌ Email send failed: {e}")
+
+
+def main():
+    new_rows = fetch_from_web()
+    if new_rows is None:  # web failed
+        new_rows = fetch_from_pdf()
+
+    if not new_rows:
+        print("ℹ️ No new draws fetched from any source.")
         return
 
-    added = 0
-    for entry in parsed:
-        key = (entry["Date"], entry["Draw"])
-        if key in existing_keys:
-            continue
-        if not is_time_to_add(entry["Date"], entry["Draw"]):
-            print(f"⏳ Skipping {entry['Draw']} on {entry['Date']} (too soon; <30m after scheduled).")
-            continue
-
-        scheduled_time = DRAW_SCHEDULE[entry["Draw"]]
-        draw_time_str = datetime.combine(entry["Date"], scheduled_time).strftime("%-I:%M %p")
-        row = {
-            "Date": entry["Date"].isoformat(),
-            "Draw": entry["Draw"],
-            "DrawTime": draw_time_str,
-            "Digit1": entry["Digit1"],
-            "Digit2": entry["Digit2"],
-            "Digit3": entry["Digit3"],
-        }
-        df_existing = pd.concat([pd.DataFrame([row]), df_existing], ignore_index=True)
-        added += 1
-
+    added, df = merge_and_save(new_rows)
     if added:
-        if "Date" in df_existing.columns:
-            df_existing["Date"] = pd.to_datetime(df_existing["Date"])
-            df_existing.sort_values(["Date", "Draw"], ascending=[False, True], inplace=True)
-        df_existing.to_csv(CSV_PATH, index=False)
-        print(f"✅ Added {added} new draw(s) to {CSV_PATH}")
+        msg = f"✅ Added {added} new draw(s). Latest draw: {df.iloc[0].to_dict()}"
     else:
-        print("✅ No new draws to add. File is up to date.")
+        msg = "✅ No new draws to add; CSV is up to date."
+    print(msg)
+
+    # optional email
+    send_email("GA Cash3 CSV Update", msg)
 
 
 if __name__ == "__main__":
-    append_new_draws()
+    main()
