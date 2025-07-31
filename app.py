@@ -1,43 +1,52 @@
 from flask import Flask, render_template, request
 import pandas as pd
-import os
-from predictions import predict_next_numbers, evaluate_accuracy
-import traceback
+import plotly.graph_objs as go
+import plotly.offline as pyo
 
 app = Flask(__name__)
 
-@app.route("/")
+# Load data
+data = pd.read_csv('ga_cash3_history_cleaned.csv')
+
+# Make sure 'Date' is a datetime type
+data['Date'] = pd.to_datetime(data['Date'])
+
+# Route for the main page
+@app.route('/', methods=['GET', 'POST'])
 def index():
-    try:
-        # === Load and parse CSV ===
-        data_path = "data/ga_cash3_history_cleaned.csv"
-        if not os.path.exists(data_path):
-            return "CSV file not found.", 500
+    filter_val = request.form.get('filter') if request.method == 'POST' else 'Midday'
 
-        df = pd.read_csv(
-            data_path,
-            parse_dates=["Date"],
-            date_parser=lambda x: pd.to_datetime(x, format="%m/%d/%Y")
-        )
-        df = df.sort_values("Date").reset_index(drop=True)
+    valid_filters = ['Midday', 'Evening', 'All']
+    if filter_val not in valid_filters:
+        filter_val = 'Midday'
 
-        # === Get last draw ===
-        last_actual_row = df.iloc[-1]
-        last_actual = [int(last_actual_row["Digit1"]), int(last_actual_row["Digit2"]), int(last_actual_row["Digit3"])]
+    # Filter data
+    if filter_val != 'All':
+        filtered_data = data[data['Draw Time'] == filter_val]
+    else:
+        filtered_data = data
 
-        # === Predict next numbers ===
-        prediction = predict_next_numbers(df)
+    # Count occurrences of each number
+    number_counts = filtered_data['Winning Numbers'].value_counts().sort_values(ascending=False)
 
-        # === Match type for display ===
-        if prediction == last_actual:
-            match_type = "Exact"
-        elif sorted(prediction) == sorted(last_actual):
-            match_type = "AnyOrder"
-        else:
-            match_type = "Miss"
+    # Create bar chart
+    bar = go.Bar(
+        x=number_counts.index,
+        y=number_counts.values,
+        marker=dict(color='blue')
+    )
 
-        # === Dropdown filter selection ===
-        filter_val = request.args.get("filter", default="30")
-        try:
-            filter_val = int(filter_val)
-            if filter_val not_
+    layout = go.Layout(
+        title=f"Frequency of Winning Numbers ({filter_val})",
+        xaxis=dict(title='Winning Number'),
+        yaxis=dict(title='Frequency')
+    )
+
+    fig = go.Figure(data=[bar], layout=layout)
+    chart_html = pyo.plot(fig, output_type='div')
+
+    return render_template('index.html', chart=chart_html, filter_val=filter_val)
+
+if __name__ == '__main__':
+    app.run(debug=True)
+``
