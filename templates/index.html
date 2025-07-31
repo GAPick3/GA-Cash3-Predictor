@@ -1,48 +1,68 @@
-<h3>Prediction Accuracy (Last 30 Draws)</h3>
-<canvas id="accuracyChart" width="800" height="300"></canvas>
+<div class="section card">
+  <h3>Prediction Accuracy Over Time</h3>
+
+  <label for="rangeSelect">Select Range:</label>
+  <select id="rangeSelect">
+    <option value="10">Last 10 Draws</option>
+    <option value="20">Last 20 Draws</option>
+    <option value="30" selected>Last 30 Draws</option>
+  </select>
+
+  <canvas id="accuracyChart" width="800" height="300"></canvas>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-  const historyData = {{ accuracy_history | tojson }};
-  const labels = historyData.map(item => item.date);
-  const exact = historyData.map(item => item.match === 'Exact' ? 1 : 0);
-  const anyOrder = historyData.map(item => item.match === 'AnyOrder' ? 1 : 0);
-  const miss = historyData.map(item => item.match === 'Miss' ? 1 : 0);
-
+  const fullData = {{ accuracy_history | tojson }};
   const ctx = document.getElementById('accuracyChart').getContext('2d');
-  new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [
-        {
-          label: 'Exact Match',
-          data: exact,
-          backgroundColor: 'rgba(54, 162, 235, 0.8)'
-        },
-        {
-          label: 'Any Order Match',
-          data: anyOrder,
-          backgroundColor: 'rgba(255, 206, 86, 0.8)'
-        },
-        {
-          label: 'Miss',
-          data: miss,
-          backgroundColor: 'rgba(255, 99, 132, 0.8)'
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: {
-            precision: 0,
-            stepSize: 1
+
+  function prepareChartData(range) {
+    const sliced = fullData.slice(-range);
+    const labels = sliced.map(item => item.date);
+    const values = sliced.map(item => {
+      if (item.match === 'Exact') return 2;
+      if (item.match === 'AnyOrder') return 1;
+      return 0;
+    });
+    return { labels, values };
+  }
+
+  function renderChart(range) {
+    const { labels, values } = prepareChartData(range);
+    if (window.accuracyChart) window.accuracyChart.destroy();
+
+    window.accuracyChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Match Level (2 = Exact, 1 = Any Order, 0 = Miss)',
+          data: values,
+          borderColor: 'rgba(54, 162, 235, 1)',
+          backgroundColor: 'rgba(54, 162, 235, 0.2)',
+          tension: 0.3,
+          fill: true,
+          pointRadius: 5
+        }]
+      },
+      options: {
+        scales: {
+          y: {
+            min: 0,
+            max: 2,
+            ticks: {
+              stepSize: 1,
+              callback: value => value === 2 ? 'Exact' : value === 1 ? 'AnyOrder' : 'Miss'
+            }
           }
         }
       }
-    }
+    });
+  }
+
+  document.getElementById('rangeSelect').addEventListener('change', e => {
+    renderChart(parseInt(e.target.value));
   });
+
+  renderChart(30);  // default view
 </script>
