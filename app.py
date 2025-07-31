@@ -8,12 +8,14 @@ CSV_PATH = "data/ga_cash3_history.csv"
 
 def load_data():
     if not os.path.exists(CSV_PATH):
-        raise FileNotFoundError(f"{CSV_PATH} not found")
-    df = pd.read_csv(CSV_PATH, parse_dates=["Date"])
-    # Normalize header whitespace
+        # Return empty DataFrame with expected columns so we don't crash downstream
+        cols = ["Date", "Draw", "DrawTime", "Digit1", "Digit2", "Digit3"]
+        return pd.DataFrame(columns=cols)
+    df = pd.read_csv(CSV_PATH, parse_dates=["Date"], dayfirst=False)
     df.rename(columns=lambda c: c.strip(), inplace=True)
-    # Ensure sorting: newest first
-    df.sort_values(["Date", "Draw"], ascending=[False, True], inplace=True)
+    # Sort newest first
+    if "Date" in df.columns:
+        df.sort_values(["Date", "Draw"], ascending=[False, True], inplace=True)
     df.reset_index(drop=True, inplace=True)
     return df
 
@@ -21,57 +23,70 @@ def load_data():
 def index():
     try:
         df = load_data()
-        if df.empty:
-            return render_template("index.html", error="No draw data found.")
     except Exception as e:
-        return render_template("index.html", error=f"Error loading data: {e}")
+        return render_template("index.html", error=f"Error loading data: {e}", latest=None, predictions=None, recent_draws=[])
 
-    latest = df.iloc[0]
-    prediction_summary = predict_next_numbers(df)
+    if df.empty:
+        return render_template("index.html", error="No draw data found.", latest=None, predictions=None, recent_draws=[])
+
+    latest_row = df.iloc[0]
+    # Safely format latest for template (avoid datetime methods in Jinja)
+    latest = {
+        "Date": latest_row["Date"].strftime("%Y-%m-%d") if not pd.isna(latest_row["Date"]) else "",
+        "Draw": latest_row.get("Draw", ""),
+        "DrawTime": latest_row.get("DrawTime", ""),
+        "Digit1": int(latest_row["Digit1"]) if "Digit1" in latest_row and pd.notna(latest_row["Digit1"]) else "",
+        "Digit2": int(latest_row["Digit2"]) if "Digit2" in latest_row and pd.notna(latest_row["Digit2"]) else "",
+        "Digit3": int(latest_row["Digit3"]) if "Digit3" in latest_row and pd.notna(latest_row["Digit3"]) else "",
+    }
+
+    predictions = predict_next_numbers(df)
     disclaimer = (
         "Cash 3 draws are independent. Historical frequency does not guarantee future results. "
         "Use the combinations for informational purposes only."
     )
+    recent_draws = df.head(10)
+    # Convert recent draws to serializable dicts with string date
+    recent = []
+    for _, r in recent_draws.iterrows():
+        recent.append({
+            "Date": r["Date"].strftime("%Y-%m-%d") if not pd.isna(r["Date"]) else "",
+            "Draw": r.get("Draw", ""),
+            "DrawTime": r.get("DrawTime", ""),
+            "Digit1": int(r["Digit1"]) if pd.notna(r.get("Digit1")) else "",
+            "Digit2": int(r["Digit2"]) if pd.notna(r.get("Digit2")) else "",
+            "Digit3": int(r["Digit3"]) if pd.notna(r.get("Digit3")) else "",
+        })
 
-    # Pass structured predictions to template
     return render_template(
         "index.html",
         latest=latest,
-        predictions=prediction_summary,
+        predictions=predictions,
         disclaimer=disclaimer,
-        recent_draws=df.head(10).to_dict(orient="records"),
+        recent_draws=recent,
     )
 
-@app.route('/api/latest')
-def api_latest():
+# (Optional) simple health/prediction APIs
+@app.route('/health')
+def health():
     try:
         df = load_data()
-        return jsonify(df.iloc[0].to_dict())
+        last_date = df.iloc[0]["Date"] if not df.empty else None
+        return jsonify({
+            "status": "ok" if not df.empty else "no_data",
+            "rows": len(df),
+            "latest_draw_date": str(last_date) if last_date is not None else None
+        })
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/predictions')
 def api_predictions():
     try:
         df = load_data()
-        summary = predict_next_numbers(df)
-        return jsonify(summary)
+        return jsonify(predict_next_numbers(df))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-@app.route('/health')
-def health():
-    try:
-        df = load_data()
-        last_date = df.iloc[0]["Date"]
-        count = len(df)
-        return jsonify({
-            "status": "ok",
-            "rows": count,
-            "latest_draw_date": str(last_date)
-        })
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
