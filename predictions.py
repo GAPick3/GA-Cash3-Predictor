@@ -1,8 +1,10 @@
 import pandas as pd
 import random
 
-
 def predict_next_numbers(df):
+    """
+    Predict the next number using mode-based frequency of each digit position.
+    """
     d1 = df['Digit1'].mode().values[0]
     d2 = df['Digit2'].mode().values[0]
     d3 = df['Digit3'].mode().values[0]
@@ -10,6 +12,13 @@ def predict_next_numbers(df):
 
 
 def evaluate_accuracy(df, n=30):
+    """
+    Evaluate prediction accuracy over the last `n` draws.
+    Returns a dictionary containing:
+    - Total draws evaluated
+    - Count of Exact and AnyOrder matches
+    - Detailed match history for plotting
+    """
     exact_matches = 0
     any_order_matches = 0
     match_results = []
@@ -32,15 +41,3 @@ def evaluate_accuracy(df, n=30):
             match_type = 'Miss'
 
         match_results.append({
-            "date": date,
-            "prediction": prediction,
-            "actual": actual_digits,
-            "match": match_type
-        })
-
-    return {
-        "total": n,
-        "exact": exact_matches,
-        "any_order": any_order_matches,
-        "history": match_results
-    }
