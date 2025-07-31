@@ -1,20 +1,48 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>GA Cash 3 Predictor</title>
+  <meta charset="UTF-8" />
+  <title>GA Cash 3 Predictor</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background: #f9f9f9;
+    }
+    h1 {
+      text-align: center;
+    }
+    .section {
+      margin: 2rem 0;
+      background: #fff;
+      padding: 1.5rem;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .highlight {
+      font-size: 1.3rem;
+      font-weight: bold;
+      color: #444;
+    }
+    select {
+      padding: 0.5rem;
+      margin-bottom: 1rem;
+    }
+  </style>
 </head>
 <body>
-    <h1>GA Cash 3 Frequency Chart</h1>
-    <form method="post">
-        <label for="filter">Draw Time:</label>
-        <select name="filter" id="filter">
-            <option value="Midday" {% if filter_val == 'Midday' %}selected{% endif %}>Midday</option>
-            <option value="Evening" {% if filter_val == 'Evening' %}selected{% endif %}>Evening</option>
-            <option value="All" {% if filter_val == 'All' %}selected{% endif %}>All</option>
-        </select>
-        <input type="submit" value="Apply">
-    </form>
-    {{ chart | safe }}
-</body>
-</html>
+
+  <h1>GA Cash 3 Predictor</h1>
+
+  <div class="section">
+    <div class="highlight">Predicted: {{ prediction[0] }}{{ prediction[1] }}{{ prediction[2] }}</div>
+    <div class="highlight">Last Draw: {{ last_actual[0] }}{{ last_actual[1] }}{{ last_actual[2] }}</div>
+    <p>Match Type: <strong>{{ match_type }}</strong></p>
+  </div>
+
+  <div class="section">
+    <h3>Prediction Accuracy</h3>
+    <p>Based on last {{ selected_filter }} draws:</p>
+    <ul>
+      <li>Exact Matches: <
