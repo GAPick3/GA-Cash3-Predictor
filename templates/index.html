@@ -1,106 +1,62 @@
-{% if error %}
-  <div style="color: red; font-weight: bold;">⚠️ {{ error }}</div>
-{% else %}
-  <!-- Normal display continues -->
-{% endif %}
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>GA Cash 3 Predictor</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 </head>
 <body>
-    <h1>Georgia Cash 3 Predictor</h1>
+    <h1>GA Cash 3 Predictor</h1>
 
-    <div>
-        <h3>Latest Draw</h3>
-        <p>{{ latest_result['Date'] }} ({{ latest_result['DrawTime'] }})</p>
-        <p>Draw: {{ latest_result['Digit1'] }} {{ latest_result['Digit2'] }} {{ latest_result['Digit3'] }}</p>
-    </div>
+    <h2>Prediction for Next Draw:</h2>
+    {% if prediction %}
+        <p><strong>{{ prediction[0] }} - {{ prediction[1] }} - {{ prediction[2] }}</strong></p>
+    {% else %}
+        <p>Prediction data not available.</p>
+    {% endif %}
 
-    <div>
-        <h3>Predicted Next Numbers</h3>
-        <p>{{ prediction[0] }} {{ prediction[1] }} {{ prediction[2] }}</p>
-    </div>
+    <h2>Accuracy (Last {{ filter_value }} draws)</h2>
+    <ul>
+        <li>Exact Matches: {{ accuracy.exact }}</li>
+        <li>Any Order Matches: {{ accuracy.any_order }}</li>
+        <li>Total Draws Evaluated: {{ accuracy.total }}</li>
+    </ul>
 
-    <div>
-        <h3>Compare With Last Prediction</h3>
-        <p>Last Prediction: {{ last_prediction[0] }} {{ last_prediction[1] }} {{ last_prediction[2] }}</p>
-    </div>
+    <label for="drawFilter">Show accuracy over:</label>
+    <select id="drawFilter" onchange="applyFilter()">
+        <option value="10" {% if filter_value == 10 %}selected{% endif %}>Last 10</option>
+        <option value="20" {% if filter_value == 20 %}selected{% endif %}>Last 20</option>
+        <option value="30" {% if filter_value == 30 %}selected{% endif %}>Last 30</option>
+    </select>
 
-    <div>
-        <h3>Accuracy Summary (Last {{ accuracy.total }} Draws)</h3>
-        <p>Exact Matches: {{ accuracy.exact }}</p>
-        <p>Any Order Matches: {{ accuracy.any_order }}</p>
-    </div>
-
-    <div class="section card">
-        <h3>Prediction Accuracy Over Time</h3>
-
-        <label for="rangeSelect">Select Range:</label>
-        <select id="rangeSelect">
-            <option value="10">Last 10 Draws</option>
-            <option value="20">Last 20 Draws</option>
-            <option value="30" selected>Last 30 Draws</option>
-        </select>
-
-        <canvas id="accuracyChart" width="800" height="300"></canvas>
-    </div>
+    <div id="accuracyChart" style="width:100%;height:400px;"></div>
 
     <script>
-      const fullData = {{ accuracy_history | tojson }};
-      const ctx = document.getElementById('accuracyChart').getContext('2d');
+        function applyFilter() {
+            const filter = document.getElementById("drawFilter").value;
+            window.location.href = "/?filter=" + filter;
+        }
 
-      function prepareChartData(range) {
-        const sliced = fullData.slice(-range);
-        const labels = sliced.map(item => item.date);
-        const values = sliced.map(item => {
-          if (item.match === 'Exact') return 2;
-          if (item.match === 'AnyOrder') return 1;
-          return 0;
-        });
-        return { labels, values };
-      }
+        const chartData = {{ chart_data|safe }};
+        const dates = chartData.map(item => item.date);
+        const values = chartData.map(item => item.accuracy);
 
-      function renderChart(range) {
-        const { labels, values } = prepareChartData(range);
-        if (window.accuracyChart) window.accuracyChart.destroy();
+        const trace = {
+            x: dates,
+            y: values,
+            type: 'scatter',
+            mode: 'lines+markers',
+            line: { shape: 'linear' },
+            marker: { color: 'green' }
+        };
 
-        window.accuracyChart = new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels: labels,
-            datasets: [{
-              label: 'Match Level (2 = Exact, 1 = Any Order, 0 = Miss)',
-              data: values,
-              borderColor: 'rgba(54, 162, 235, 1)',
-              backgroundColor: 'rgba(54, 162, 235, 0.2)',
-              tension: 0.3,
-              fill: true,
-              pointRadius: 5
-            }]
-          },
-          options: {
-            scales: {
-              y: {
-                min: 0,
-                max: 2,
-                ticks: {
-                  stepSize: 1,
-                  callback: value => value === 2 ? 'Exact' : value === 1 ? 'AnyOrder' : 'Miss'
-                }
-              }
-            }
-          }
-        });
-      }
+        const layout = {
+            title: 'Prediction Accuracy Over Time',
+            yaxis: { title: 'Match (1=Hit, 0=Miss)', range: [-0.1, 1.1] },
+            xaxis: { title: 'Date' }
+        };
 
-      document.getElementById('rangeSelect').addEventListener('change', e => {
-        renderChart(parseInt(e.target.value));
-      });
-
-      renderChart(30);
+        Plotly.newPlot('accuracyChart', [trace], layout);
     </script>
 </body>
 </html>
