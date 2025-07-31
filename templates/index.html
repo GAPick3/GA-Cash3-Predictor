@@ -3,60 +3,133 @@
 <head>
     <meta charset="UTF-8">
     <title>GA Cash 3 Predictor</title>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 30px;
+            background-color: #f7f7f7;
+        }
+        h1 {
+            color: #2c3e50;
+        }
+        .prediction, .accuracy-summary, .comparison {
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        .comparison span.match {
+            font-weight: bold;
+            color: green;
+        }
+        select {
+            padding: 6px;
+            margin-top: 10px;
+        }
+    </style>
 </head>
 <body>
+
     <h1>GA Cash 3 Predictor</h1>
 
-    <h2>Prediction for Next Draw:</h2>
-    {% if prediction %}
-        <p><strong>{{ prediction[0] }} - {{ prediction[1] }} - {{ prediction[2] }}</strong></p>
-    {% else %}
-        <p>Prediction data not available.</p>
-    {% endif %}
+    <div class="prediction">
+        <h2>Latest Prediction</h2>
+        <p><strong>{{ prediction|join('') }}</strong></p>
+    </div>
 
-    <h2>Accuracy (Last {{ filter_value }} draws)</h2>
-    <ul>
-        <li>Exact Matches: {{ accuracy.exact }}</li>
-        <li>Any Order Matches: {{ accuracy.any_order }}</li>
-        <li>Total Draws Evaluated: {{ accuracy.total }}</li>
-    </ul>
+    <div class="comparison">
+        <h2>Compare with Last Draw</h2>
+        <p><strong>Last Result:</strong> {{ last_actual|join('') }}</p>
+        <p><strong>Match Type:</strong> 
+            <span class="match">{{ match_type }}</span>
+        </p>
+    </div>
 
-    <label for="drawFilter">Show accuracy over:</label>
-    <select id="drawFilter" onchange="applyFilter()">
-        <option value="10" {% if filter_value == 10 %}selected{% endif %}>Last 10</option>
-        <option value="20" {% if filter_value == 20 %}selected{% endif %}>Last 20</option>
-        <option value="30" {% if filter_value == 30 %}selected{% endif %}>Last 30</option>
-    </select>
+    <div class="accuracy-summary">
+        <h2>Accuracy Summary (Last {{ total_draws }} Draws)</h2>
+        <p><strong>Exact Matches:</strong> {{ accuracy_data.exact }}</p>
+        <p><strong>Any Order Matches:</strong> {{ accuracy_data.any_order }}</p>
 
-    <div id="accuracyChart" style="width:100%;height:400px;"></div>
+        <label for="filterSelect">Select Draw Range:</label>
+        <select id="filterSelect">
+            <option value="10" {% if selected_filter == 10 %}selected{% endif %}>Last 10</option>
+            <option value="20" {% if selected_filter == 20 %}selected{% endif %}>Last 20</option>
+            <option value="30" {% if selected_filter == 30 %}selected{% endif %}>Last 30</option>
+        </select>
+    </div>
+
+    <div class="accuracy-chart">
+        <h2>Accuracy Over Time</h2>
+        <canvas id="accuracyChart" height="100"></canvas>
+    </div>
 
     <script>
-        function applyFilter() {
-            const filter = document.getElementById("drawFilter").value;
-            window.location.href = "/?filter=" + filter;
-        }
+        const historyData = {{ accuracy_data.history|tojson }};
+        const filterSelect = document.getElementById("filterSelect");
 
-        const chartData = {{ chart_data|safe }};
-        const dates = chartData.map(item => item.date);
-        const values = chartData.map(item => item.accuracy);
+        filterSelect.addEventListener("change", function() {
+            const value = this.value;
+            const url = new URL(window.location.href);
+            url.searchParams.set("filter", value);
+            window.location.href = url.toString();
+        });
 
-        const trace = {
-            x: dates,
-            y: values,
-            type: 'scatter',
-            mode: 'lines+markers',
-            line: { shape: 'linear' },
-            marker: { color: 'green' }
-        };
+        const ctx = document.getElementById('accuracyChart').getContext('2d');
 
-        const layout = {
-            title: 'Prediction Accuracy Over Time',
-            yaxis: { title: 'Match (1=Hit, 0=Miss)', range: [-0.1, 1.1] },
-            xaxis: { title: 'Date' }
-        };
+        const dates = historyData.map(item => item.date);
+        const matchTypes = historyData.map(item => {
+            if (item.match === 'Exact') return 2;
+            if (item.match === 'AnyOrder') return 1;
+            return 0;
+        });
 
-        Plotly.newPlot('accuracyChart', [trace], layout);
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: dates,
+                datasets: [{
+                    label: 'Accuracy Score',
+                    data: matchTypes,
+                    borderColor: '#3498db',
+                    backgroundColor: 'rgba(52, 152, 219, 0.2)',
+                    tension: 0.3,
+                    pointRadius: 5
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Score (0=Miss, 1=AnyOrder, 2=Exact)'
+                        },
+                        ticks: {
+                            stepSize: 1,
+                            beginAtZero: true,
+                            max: 2
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const score = context.raw;
+                                if (score === 2) return 'Exact Match';
+                                if (score === 1) return 'Any Order Match';
+                                return 'Miss';
+                            }
+                        }
+                    }
+                }
+            }
+        });
     </script>
+
 </body>
 </html>
