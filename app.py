@@ -1,41 +1,47 @@
 from flask import Flask, render_template
 import pandas as pd
 import json
-from predictor import predict_next_numbers, evaluate_accuracy
+import os
 
 app = Flask(__name__)
 
-@app.route("/")
+@app.route('/')
 def index():
-    df = pd.read_csv("data/ga_cash3_history_cleaned.csv")
-    df['Date'] = pd.to_datetime(df['Date'], format='%Y-%m-%d', errors='coerce')
+    csv_path = 'data/ga_cash3_history_cleaned.csv'
+    pred_path = 'static/last_prediction.json'
+    acc_path = 'static/accuracy_history.json'
+
+    if not os.path.exists(csv_path) or os.stat(csv_path).st_size == 0:
+        return render_template("index.html", error="History data not available.")
+
+    df = pd.read_csv(csv_path)
+    if df.empty:
+        return render_template("index.html", error="No draw data found.")
+
+    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
     df = df.dropna(subset=['Date'])
-    df = df.sort_values(by="Date")
+    df = df.sort_values(by='Date')
+    latest = df.iloc[-1].to_dict()
 
-    latest_result = df.iloc[-1]
-    prediction = predict_next_numbers(df)
-    
-    # Load previous prediction if stored
-    try:
-        with open('static/last_prediction.json', 'r') as f:
-            last_prediction = json.load(f)
-    except FileNotFoundError:
-        last_prediction = None
+    prediction = [0, 0, 0]
+    if os.path.exists(pred_path):
+        with open(pred_path) as f:
+            prediction = json.load(f)
 
-    # Save current prediction for next comparison
-    with open('static/last_prediction.json', 'w') as f:
-        json.dump(prediction, f)
+    last_prediction = prediction
+    accuracy_data = []
+    summary = {"total": 0, "exact": 0, "any_order": 0}
 
-    # Accuracy analysis
-    accuracy = evaluate_accuracy(df, n=30)
-
-    # Save history to JSON for chart rendering
-    with open('static/accuracy_history.json', 'w') as f:
-        json.dump(accuracy["history"], f)
+    if os.path.exists(acc_path):
+        with open(acc_path) as f:
+            accuracy_data = json.load(f)
+            summary["total"] = len(accuracy_data)
+            summary["exact"] = sum(1 for m in accuracy_data if m["match"] == "Exact")
+            summary["any_order"] = sum(1 for m in accuracy_data if m["match"] == "AnyOrder")
 
     return render_template("index.html",
-                           latest_result=latest_result,
+                           latest_result=latest,
                            prediction=prediction,
                            last_prediction=last_prediction,
-                           accuracy=accuracy,
-                           accuracy_history=accuracy["history"])
+                           accuracy=summary,
+                           accuracy_history=accuracy_data)
