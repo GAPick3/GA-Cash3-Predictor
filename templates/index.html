@@ -1,10 +1,74 @@
-<div><strong>Date:</strong> {{ latest.Date if latest and latest.Date else 'N/A' }}</div>
-<div><strong>Draw:</strong> {{ latest.Draw if latest and latest.Draw else 'N/A' }}</div>
-<div><strong>Scheduled Time:</strong> {{ latest.DrawTime if latest and latest.DrawTime else 'N/A' }}</div>
-<div><strong>Numbers:</strong>
-  {% if latest %}
-    <span class="triplet">{{ latest.Digit1 }} {{ latest.Digit2 }} {{ latest.Digit3 }}</span>
-  {% else %}
-    N/A
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>GA Cash 3 Predictor</title>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: auto; padding: 1rem; }
+    .triplet { font-weight: bold; }
+    .card { padding: 1rem; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 1rem; }
+    .predictions { margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Georgia Cash 3 Predictor</h1>
+
+  {% if error %}
+    <div style="color: red; margin-bottom:1rem;">{{ error }}</div>
   {% endif %}
-</div>
+
+  <div class="card">
+    <h2>Latest Draw</h2>
+    {% if latest %}
+      <div><strong>Date:</strong> {{ latest.Date or 'N/A' }}</div>
+      <div><strong>Draw:</strong> {{ latest.Draw or 'N/A' }}</div>
+      <div><strong>Scheduled Time:</strong> {{ latest.DrawTime or 'N/A' }}</div>
+      <div><strong>Numbers:</strong> <span class="triplet">{{ latest.Digit1 }} {{ latest.Digit2 }} {{ latest.Digit3 }}</span></div>
+    {% else %}
+      <div>No latest draw available.</div>
+    {% endif %}
+  </div>
+
+  <div class="card predictions">
+    <h2>Top {{ predictions|length if predictions else 0 }} Historical Triplets</h2>
+    {% if predictions %}
+      <ul>
+        {% for p in predictions %}
+          <li>{{ p }}</li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div>No predictions available.</div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3>Recent Draws</h3>
+    {% if recent_draws %}
+      <table border="1" cellpadding="6" cellspacing="0">
+        <thead>
+          <tr>
+            <th>Date</th><th>Draw</th><th>Time</th><th>Numbers</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in recent_draws %}
+            <tr>
+              <td>{{ r.Date }}</td>
+              <td>{{ r.Draw }}</td>
+              <td>{{ r.DrawTime }}</td>
+              <td>{{ r.Digit1 }} {{ r.Digit2 }} {{ r.Digit3 }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div>No recent draws.</div>
+    {% endif %}
+  </div>
+
+  <div style="font-size:0.8em; color:#555;">
+    {{ disclaimer }}
+  </div>
+</body>
+</html>
