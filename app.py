@@ -1,3 +1,5 @@
+# app.py
+
 from flask import Flask, render_template
 import pandas as pd
 from predictor import predict_next_numbers
@@ -8,14 +10,18 @@ app = Flask(__name__)
 def index():
     data_path = "data/ga_cash3_history_cleaned.csv"
 
-    print("Pandas version:", pd.__version__)  # Debugging
+    # Load CSV and manually parse date with 2-digit year format
+    try:
+        df = pd.read_csv(data_path, dtype={"Date": str})
+        df["Date"] = pd.to_datetime(df["Date"], format="%m/%d/%y", errors="raise")
+    except Exception as e:
+        return f"Error loading data: {e}", 500
 
-    df = pd.read_csv(data_path, dtype={"Date": str})
-    df["Date"] = pd.to_datetime(df["Date"], format="%m/%d/%y", errors="raise")
-
+    # Sort and get the latest result
     df = df.sort_values(by="Date", ascending=False)
     latest_result = df.iloc[0]
 
+    # Predict next numbers
     prediction = predict_next_numbers(df)
 
     return render_template(
