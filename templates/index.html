@@ -1,3 +1,9 @@
+{% if error %}
+  <div style="color: red; font-weight: bold;">⚠️ {{ error }}</div>
+{% else %}
+  <!-- Normal display continues -->
+{% endif %}
+
 <!DOCTYPE html>
 <html>
 <head>
