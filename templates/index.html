@@ -1,58 +1,48 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>GA Cash 3 Predictor</title>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <style>
-        body { font-family: Arial, sans-serif; background-color: #111; color: #eee; padding: 20px; }
-        .section { margin-bottom: 30px; }
-        .card { background: #222; padding: 20px; border-radius: 12px; box-shadow: 0 0 10px #00ffcc33; }
-        h1, h2, h3 { color: #00ffcc; }
-    </style>
-</head>
-<body>
-    <h1>Georgia Cash 3 Predictor</h1>
+<h3>Prediction Accuracy (Last 30 Draws)</h3>
+<canvas id="accuracyChart" width="800" height="300"></canvas>
 
-    {% if error %}
-        <div class="section card"><p style="color: red;">{{ error }}</p></div>
-    {% else %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const historyData = {{ accuracy_history | tojson }};
+  const labels = historyData.map(item => item.date);
+  const exact = historyData.map(item => item.match === 'Exact' ? 1 : 0);
+  const anyOrder = historyData.map(item => item.match === 'AnyOrder' ? 1 : 0);
+  const miss = historyData.map(item => item.match === 'Miss' ? 1 : 0);
 
-    <div class="section card">
-        <h2>Latest Result ({{ latest_result.draw_time }})</h2>
-        <p><strong>Date:</strong> {{ latest_result.date }}</p>
-        <p><strong>Winning Numbers:</strong> {{ latest_result.numbers[0] }} {{ latest_result.numbers[1] }} {{ latest_result.numbers[2] }}</p>
-        <p><strong>Winners:</strong> {{ latest_result.winners }}</p>
-        <p><strong>Total Payout:</strong> ${{ latest_result.payout }}</p>
-    </div>
-
-    <div class="section card">
-        <h2>Today's Prediction</h2>
-        <p><strong>Predicted Numbers:</strong> {{ prediction[0] }} {{ prediction[1] }} {{ prediction[2] }}</p>
-    </div>
-
-    {% if last_prediction %}
-    <div class="section card">
-        <h2>Compare with Last Prediction</h2>
-        <p><strong>Previous Prediction:</strong> {{ last_prediction.prediction[0] }} {{ last_prediction.prediction[1] }} {{ last_prediction.prediction[2] }}</p>
-        <p><strong>Actual Draw:</strong> {{ last_prediction.actual[0] }} {{ last_prediction.actual[1] }} {{ last_prediction.actual[2] }}</p>
-        <p><strong>Generated On:</strong> {{ last_prediction.timestamp }}</p>
-    </div>
-    {% endif %}
-
-    <div class="section card">
-        <h2>Accuracy Score (Last {{ accuracy.total }} Draws)</h2>
-        <p><strong>Exact Match:</strong> {{ accuracy.exact }} of {{ accuracy.total }} ({{ ((accuracy.exact / accuracy.total) * 100) | round(1) }}%)</p>
-        <p><strong>Any Order Match:</strong> {{ accuracy.any_order }} of {{ accuracy.total }} ({{ ((accuracy.any_order / accuracy.total) * 100) | round(1) }}%)</p>
-    </div>
-
-    <div class="section card">
-        <h2>Interactive Chart</h2>
-        <div id="chart"></div>
-        <script>
-            const chart = {{ chart_json | safe }};
-            Plotly.newPlot('chart', chart.data, chart.layout);
-        </script>
-    </div>
-    {% endif %}
-</body>
-</html>
+  const ctx = document.getElementById('accuracyChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Exact Match',
+          data: exact,
+          backgroundColor: 'rgba(54, 162, 235, 0.8)'
+        },
+        {
+          label: 'Any Order Match',
+          data: anyOrder,
+          backgroundColor: 'rgba(255, 206, 86, 0.8)'
+        },
+        {
+          label: 'Miss',
+          data: miss,
+          backgroundColor: 'rgba(255, 99, 132, 0.8)'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            precision: 0,
+            stepSize: 1
+          }
+        }
+      }
+    }
+  });
+</script>
