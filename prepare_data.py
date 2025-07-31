@@ -1,37 +1,34 @@
-import os
 import pandas as pd
-import json
+from collections import Counter
 
-os.makedirs("data", exist_ok=True)
-os.makedirs("static", exist_ok=True)
+def predict_next_numbers(df=None, n=5, draw=None):
+    if df is None:
+        df = pd.read_csv("data/ga_cash3_history.csv")
 
-history_path = "data/ga_cash3_history_cleaned.csv"
-pred_path = "static/last_prediction.json"
-acc_path = "static/accuracy_history.json"
+    if draw:
+        df = df[df["Draw"].str.lower() == draw.lower()]
 
-# Create dummy draw history if not exists
-if not os.path.exists(history_path):
-    df = pd.DataFrame([{
-        "Date": "2025-07-30",
-        "Draw": "123",
-        "DrawTime": "Evening",
-        "Digit1": 1,
-        "Digit2": 2,
-        "Digit3": 3,
-        "Winners": 0,
-        "TotalPayout": 0
-    }])
-    df.to_csv(history_path, index=False)
+    # Ensure digits exist and are integers
+    def triplet(row):
+        try:
+            return f"{int(row['Digit1'])}{int(row['Digit2'])}{int(row['Digit3'])}"
+        except Exception:
+            return None
 
-# Create dummy prediction file
-if not os.path.exists(pred_path):
-    json.dump([1, 2, 3], open(pred_path, "w"))
+    triplets = df.apply(triplet, axis=1).dropna()
+    counts = Counter(triplets)
+    return [combo for combo, _ in counts.most_common(n)]
 
-# Create dummy accuracy file
-if not os.path.exists(acc_path):
-    json.dump([{
-        "date": "2025-07-30",
-        "prediction": [1, 2, 3],
-        "actual": [1, 2, 3],
-        "match": "Exact"
-    }], open(acc_path, "w"))
+def summary_stats(df=None):
+    if df is None:
+        df = pd.read_csv("data/ga_cash3_history.csv")
+    total_draws = len(df)
+    most_common_all = predict_next_numbers(df, n=3)
+    by_draw = {}
+    for label in df["Draw"].unique():
+        by_draw[label] = predict_next_numbers(df, n=3, draw=label)
+    return {
+        "total_draws": total_draws,
+        "top_overall": most_common_all,
+        "top_by_draw": by_draw,
+    }
