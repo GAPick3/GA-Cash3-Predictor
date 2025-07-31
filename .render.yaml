@@ -1,11 +1,13 @@
 services:
   - type: web
     name: ga-cash3-predictor
-    env: python
+    runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
     envVars:
       - key: FLASK_ENV
         value: production
+      - key: PYTHON_VERSION
+        value: 3.10
     autoDeploy: true
     plan: free
