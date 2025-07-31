@@ -3,133 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <title>GA Cash 3 Predictor</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            padding: 30px;
-            background-color: #f7f7f7;
-        }
-        h1 {
-            color: #2c3e50;
-        }
-        .prediction, .accuracy-summary, .comparison {
-            background: #ffffff;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.05);
-            margin-bottom: 20px;
-        }
-        .comparison span.match {
-            font-weight: bold;
-            color: green;
-        }
-        select {
-            padding: 6px;
-            margin-top: 10px;
-        }
-    </style>
 </head>
 <body>
-
-    <h1>GA Cash 3 Predictor</h1>
-
-    <div class="prediction">
-        <h2>Latest Prediction</h2>
-        <p><strong>{{ prediction|join('') }}</strong></p>
-    </div>
-
-    <div class="comparison">
-        <h2>Compare with Last Draw</h2>
-        <p><strong>Last Result:</strong> {{ last_actual|join('') }}</p>
-        <p><strong>Match Type:</strong> 
-            <span class="match">{{ match_type }}</span>
-        </p>
-    </div>
-
-    <div class="accuracy-summary">
-        <h2>Accuracy Summary (Last {{ total_draws }} Draws)</h2>
-        <p><strong>Exact Matches:</strong> {{ accuracy_data.exact }}</p>
-        <p><strong>Any Order Matches:</strong> {{ accuracy_data.any_order }}</p>
-
-        <label for="filterSelect">Select Draw Range:</label>
-        <select id="filterSelect">
-            <option value="10" {% if selected_filter == 10 %}selected{% endif %}>Last 10</option>
-            <option value="20" {% if selected_filter == 20 %}selected{% endif %}>Last 20</option>
-            <option value="30" {% if selected_filter == 30 %}selected{% endif %}>Last 30</option>
+    <h1>GA Cash 3 Frequency Chart</h1>
+    <form method="post">
+        <label for="filter">Draw Time:</label>
+        <select name="filter" id="filter">
+            <option value="Midday" {% if filter_val == 'Midday' %}selected{% endif %}>Midday</option>
+            <option value="Evening" {% if filter_val == 'Evening' %}selected{% endif %}>Evening</option>
+            <option value="All" {% if filter_val == 'All' %}selected{% endif %}>All</option>
         </select>
-    </div>
-
-    <div class="accuracy-chart">
-        <h2>Accuracy Over Time</h2>
-        <canvas id="accuracyChart" height="100"></canvas>
-    </div>
-
-    <script>
-        const historyData = {{ accuracy_data.history|tojson }};
-        const filterSelect = document.getElementById("filterSelect");
-
-        filterSelect.addEventListener("change", function() {
-            const value = this.value;
-            const url = new URL(window.location.href);
-            url.searchParams.set("filter", value);
-            window.location.href = url.toString();
-        });
-
-        const ctx = document.getElementById('accuracyChart').getContext('2d');
-
-        const dates = historyData.map(item => item.date);
-        const matchTypes = historyData.map(item => {
-            if (item.match === 'Exact') return 2;
-            if (item.match === 'AnyOrder') return 1;
-            return 0;
-        });
-
-        const chart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: dates,
-                datasets: [{
-                    label: 'Accuracy Score',
-                    data: matchTypes,
-                    borderColor: '#3498db',
-                    backgroundColor: 'rgba(52, 152, 219, 0.2)',
-                    tension: 0.3,
-                    pointRadius: 5
-                }]
-            },
-            options: {
-                scales: {
-                    y: {
-                        title: {
-                            display: true,
-                            text: 'Score (0=Miss, 1=AnyOrder, 2=Exact)'
-                        },
-                        ticks: {
-                            stepSize: 1,
-                            beginAtZero: true,
-                            max: 2
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const score = context.raw;
-                                if (score === 2) return 'Exact Match';
-                                if (score === 1) return 'Any Order Match';
-                                return 'Miss';
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    </script>
-
+        <input type="submit" value="Apply">
+    </form>
+    {{ chart | safe }}
 </body>
 </html>
