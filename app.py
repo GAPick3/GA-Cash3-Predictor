@@ -1,52 +1,62 @@
 from flask import Flask, render_template, request
 import pandas as pd
-import plotly.graph_objs as go
-import plotly.offline as pyo
+import os
+from predictions import predict_next_numbers, evaluate_accuracy
+import traceback
 
 app = Flask(__name__)
 
-# Load data
-data = pd.read_csv('ga_cash3_history_cleaned.csv')
-
-# Make sure 'Date' is a datetime type
-data['Date'] = pd.to_datetime(data['Date'])
-
-# Route for the main page
-@app.route('/', methods=['GET', 'POST'])
+@app.route("/")
 def index():
-    filter_val = request.form.get('filter') if request.method == 'POST' else 'Midday'
+    try:
+        # === Load and parse CSV ===
+        data_path = "data/ga_cash3_history_cleaned.csv"
+        if not os.path.exists(data_path):
+            return "CSV file not found.", 500
 
-    valid_filters = ['Midday', 'Evening', 'All']
-    if filter_val not in valid_filters:
-        filter_val = 'Midday'
+        df = pd.read_csv(
+            data_path,
+            parse_dates=["Date"],
+            date_parser=lambda x: pd.to_datetime(x, format="%m/%d/%Y")
+        )
+        df = df.sort_values("Date").reset_index(drop=True)
 
-    # Filter data
-    if filter_val != 'All':
-        filtered_data = data[data['Draw Time'] == filter_val]
-    else:
-        filtered_data = data
+        # === Get last draw ===
+        last_actual_row = df.iloc[-1]
+        last_actual = [int(last_actual_row["Digit1"]), int(last_actual_row["Digit2"]), int(last_actual_row["Digit3"])]
 
-    # Count occurrences of each number
-    number_counts = filtered_data['Winning Numbers'].value_counts().sort_values(ascending=False)
+        # === Predict next numbers ===
+        prediction = predict_next_numbers(df)
 
-    # Create bar chart
-    bar = go.Bar(
-        x=number_counts.index,
-        y=number_counts.values,
-        marker=dict(color='blue')
-    )
+        # === Match type for display ===
+        if prediction == last_actual:
+            match_type = "Exact"
+        elif sorted(prediction) == sorted(last_actual):
+            match_type = "AnyOrder"
+        else:
+            match_type = "Miss"
 
-    layout = go.Layout(
-        title=f"Frequency of Winning Numbers ({filter_val})",
-        xaxis=dict(title='Winning Number'),
-        yaxis=dict(title='Frequency')
-    )
+        # === Dropdown filter selection ===
+        filter_val = request.args.get("filter", default="30")
+        try:
+            filter_val = int(filter_val)
+            if filter_val not in [10, 20, 30]:
+                filter_val = 30
+        except:
+            filter_val = 30
 
-    fig = go.Figure(data=[bar], layout=layout)
-    chart_html = pyo.plot(fig, output_type='div')
+        # === Accuracy analysis ===
+        accuracy_data = evaluate_accuracy(df, n=filter_val)
 
-    return render_template('index.html', chart=chart_html, filter_val=filter_val)
+        return render_template("index.html",
+                               prediction=prediction,
+                               last_actual=last_actual,
+                               match_type=match_type,
+                               accuracy_data=accuracy_data,
+                               selected_filter=filter_val)
+    except Exception:
+        return f"<pre>{traceback.format_exc()}</pre>", 500
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     app.run(debug=True)
-``
