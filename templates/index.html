@@ -2,38 +2,13 @@
 <html>
 <head>
     <title>GA Cash 3 Predictor</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            padding: 2rem;
-            background-color: #f9f9f9;
-        }
-        .card {
-            background: white;
-            border-radius: 12px;
-            padding: 1.5rem;
-            max-width: 500px;
-            margin: auto;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        h1, h2 {
-            text-align: center;
-        }
-        .numbers {
-            font-size: 2rem;
-            text-align: center;
-            letter-spacing: 0.2rem;
-        }
-    </style>
 </head>
 <body>
-    <div class="card">
-        <h1>GA Cash 3 Predictor</h1>
-        <h2>Latest Draw: {{ latest_date }} ({{ draw_time }})</h2>
-        <p class="numbers">Winning Numbers: <strong>{{ winning_numbers }}</strong></p>
-        <hr>
-        <h2>Predicted Numbers:</h2>
-        <p class="numbers"><strong>{{ prediction[0] }}{{ prediction[1] }}{{ prediction[2] }}</strong></p>
-    </div>
+    <h1>Georgia Cash 3 Predictor</h1>
+    <p><strong>Latest Draw:</strong> {{ latest_date }} ({{ draw_time }})</p>
+    <p><strong>Winning Numbers:</strong> {{ winning_numbers }}</p>
+    <hr>
+    <h2>Prediction for Next Draw:</h2>
+    <p><strong>{{ prediction[0] }} {{ prediction[1] }} {{ prediction[2] }}</strong></p>
 </body>
 </html>
