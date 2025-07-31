@@ -1,43 +1,51 @@
 import pandas as pd
 import random
+from collections import Counter
+from datetime import datetime, timedelta
 
-def predict_next_numbers(df):
-    """
-    Predict the next number using mode-based frequency of each digit position.
-    """
-    d1 = df['Digit1'].mode().values[0]
-    d2 = df['Digit2'].mode().values[0]
-    d3 = df['Digit3'].mode().values[0]
-    return [int(d1), int(d2), int(d3)]
+# Load the draw history
+def load_data(file_path='data/ga_cash3_history.csv'):
+    df = pd.read_csv(file_path)
+    df['Draw Date'] = pd.to_datetime(df['Draw Date'])
+    return df
 
+# Predict next numbers based on frequency of past draws
+def predict_next_numbers(n_predictions=5):
+    df = load_data()
+    all_numbers = df['Winning Numbers'].astype(str).str.zfill(3)
 
-def evaluate_accuracy(df, n=30):
-    """
-    Evaluate prediction accuracy over the last `n` draws.
-    Returns a dictionary containing:
-    - Total draws evaluated
-    - Count of Exact and AnyOrder matches
-    - Detailed match history for plotting
-    """
-    exact_matches = 0
-    any_order_matches = 0
+    # Flatten all digits from the past numbers
+    digits = [digit for number in all_numbers for digit in number]
+    counter = Counter(digits)
+
+    # Get the top most frequent digits
+    top_digits = [item[0] for item in counter.most_common(5)]
+
+    predictions = set()
+    while len(predictions) < n_predictions:
+        pred = ''.join(random.choices(top_digits, k=3))
+        predictions.add(pred)
+
+    return list(predictions)
+
+# Evaluate how well predictions matched recent results
+def evaluate_accuracy(predictions, n_results=5):
+    df = load_data()
+    recent_results = df.sort_values('Draw Date', ascending=False).head(n_results)
+    recent_numbers = recent_results['Winning Numbers'].astype(str).str.zfill(3).tolist()
+
     match_results = []
+    for pred in predictions:
+        match_info = {
+            'prediction': pred,
+            'matches': []
+        }
+        for result in recent_numbers:
+            matches = sum(p == r for p, r in zip(pred, result))
+            match_info['matches'].append({
+                'draw': result,
+                'matched_digits': matches
+            })
+        match_results.append(match_info)
 
-    for i in range(n, 0, -1):
-        train_df = df.iloc[:-(i)]
-        actual = df.iloc[-i]
-        prediction = predict_next_numbers(train_df)
-
-        actual_digits = [int(actual['Digit1']), int(actual['Digit2']), int(actual['Digit3'])]
-        date = str(actual['Date'].date())
-
-        if prediction == actual_digits:
-            match_type = 'Exact'
-            exact_matches += 1
-        elif sorted(prediction) == sorted(actual_digits):
-            match_type = 'AnyOrder'
-            any_order_matches += 1
-        else:
-            match_type = 'Miss'
-
-        match_results.append({
+    return match_results
