@@ -1,65 +1,92 @@
 from flask import Flask, render_template
 import pandas as pd
 import plotly.graph_objs as go
+import plotly
 import json
 import os
+from datetime import datetime
 from predictor import predict_next_numbers
 
 app = Flask(__name__)
 
 CSV_FILE = "data/ga_cash3_history_cleaned.csv"
-HISTORY_LOG = "data/prediction_history.json"
+HISTORY_FILE = "data/prediction_history.json"
 
 def load_data():
     df = pd.read_csv(CSV_FILE)
-    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+    # Set correct format according to your actual date (adjust if needed)
+    df['Date'] = pd.to_datetime(df['Date'], format='%m/%d/%Y', errors='coerce')
     df = df.dropna(subset=['Date'])
     df = df.sort_values(by='Date', ascending=False)
     return df
 
 def get_last_prediction():
-    if os.path.exists(HISTORY_LOG):
-        with open(HISTORY_LOG, 'r') as f:
+    if not os.path.exists(HISTORY_FILE) or os.stat(HISTORY_FILE).st_size == 0:
+        return None
+    try:
+        with open(HISTORY_FILE, 'r') as f:
             history = json.load(f)
             if history:
-                return history[-1]  # most recent prediction
+                return history[-1]
+    except json.JSONDecodeError:
+        return None
     return None
 
-def save_prediction(prediction):
+def save_prediction(prediction, actual):
+    entry = {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "prediction": prediction,
+        "actual": actual
+    }
     history = []
-    if os.path.exists(HISTORY_LOG):
-        with open(HISTORY_LOG, 'r') as f:
-            history = json.load(f)
-    history.append(prediction)
-    with open(HISTORY_LOG, 'w') as f:
+    if os.path.exists(HISTORY_FILE):
+        try:
+            with open(HISTORY_FILE, 'r') as f:
+                history = json.load(f)
+        except json.JSONDecodeError:
+            history = []
+    history.append(entry)
+    with open(HISTORY_FILE, 'w') as f:
         json.dump(history, f, indent=2)
 
-def create_chart(df):
+def create_interactive_chart(df):
     df_sorted = df.sort_values(by='Date')
-    values = df_sorted[['Digit1', 'Digit2', 'Digit3']].sum(axis=1)
+    digit_sums = df_sorted[['Digit1', 'Digit2', 'Digit3']].sum(axis=1)
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=df_sorted['Date'], y=values, mode='lines+markers', name='Draw Sum'))
+    fig.add_trace(go.Scatter(x=df_sorted['Date'], y=digit_sums, mode='lines+markers', name='Sum of Digits'))
+
     fig.update_layout(
-        title="Sum of Draw Digits Over Time",
+        title="Sum of Winning Digits Over Time",
         xaxis_title="Date",
-        yaxis_title="Sum (Digit1 + Digit2 + Digit3)",
+        yaxis_title="Digit Sum (Digit1 + Digit2 + Digit3)",
         template="plotly_dark"
     )
+
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
 @app.route('/')
 def index():
-    df = load_data()
-    latest_result = df.iloc[0]
-    prediction = predict_next_numbers(df)
-    last_prediction = get_last_prediction()
-    save_prediction({
-        "date": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"),
-        "prediction": prediction
-    })
+    if not os.path.exists(CSV_FILE):
+        return render_template("index.html", error="Data file not found.")
 
-    chart_json = create_chart(df)
+    df = load_data()
+    latest = df.iloc[0]
+    actual_result = [int(latest['Digit1']), int(latest['Digit2']), int(latest['Digit3'])]
+    latest_result = {
+        "date": latest['Date'].strftime('%Y-%m-%d'),
+        "draw_time": latest['DrawTime'],
+        "numbers": actual_result,
+        "winners": latest['Winners'],
+        "payout": latest['TotalPayout']
+    }
+
+    prediction = predict_next_numbers(df)
+    save_prediction(prediction, actual_result)
+
+    last_prediction = get_last_prediction()
+    chart_json = create_interactive_chart(df)
+
     return render_template("index.html",
                            latest_result=latest_result,
                            prediction=prediction,
