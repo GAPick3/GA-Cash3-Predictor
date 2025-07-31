@@ -8,12 +8,11 @@ CSV_PATH = "data/ga_cash3_history.csv"
 
 def load_data():
     if not os.path.exists(CSV_PATH):
-        # Return empty DataFrame with expected columns so we don't crash downstream
+        # return empty frame to avoid throwing later
         cols = ["Date", "Draw", "DrawTime", "Digit1", "Digit2", "Digit3"]
         return pd.DataFrame(columns=cols)
-    df = pd.read_csv(CSV_PATH, parse_dates=["Date"], dayfirst=False)
+    df = pd.read_csv(CSV_PATH, parse_dates=["Date"])
     df.rename(columns=lambda c: c.strip(), inplace=True)
-    # Sort newest first
     if "Date" in df.columns:
         df.sort_values(["Date", "Draw"], ascending=[False, True], inplace=True)
     df.reset_index(drop=True, inplace=True)
@@ -27,17 +26,16 @@ def index():
         return render_template("index.html", error=f"Error loading data: {e}", latest=None, predictions=None, recent_draws=[])
 
     if df.empty:
-        return render_template("index.html", error="No draw data found.", latest=None, predictions=None, recent_draws=[])
+        return render_template("index.html", error="No draw data available.", latest=None, predictions=None, recent_draws=[])
 
     latest_row = df.iloc[0]
-    # Safely format latest for template (avoid datetime methods in Jinja)
     latest = {
         "Date": latest_row["Date"].strftime("%Y-%m-%d") if not pd.isna(latest_row["Date"]) else "",
         "Draw": latest_row.get("Draw", ""),
         "DrawTime": latest_row.get("DrawTime", ""),
-        "Digit1": int(latest_row["Digit1"]) if "Digit1" in latest_row and pd.notna(latest_row["Digit1"]) else "",
-        "Digit2": int(latest_row["Digit2"]) if "Digit2" in latest_row and pd.notna(latest_row["Digit2"]) else "",
-        "Digit3": int(latest_row["Digit3"]) if "Digit3" in latest_row and pd.notna(latest_row["Digit3"]) else "",
+        "Digit1": int(latest_row["Digit1"]) if pd.notna(latest_row.get("Digit1", None)) else "",
+        "Digit2": int(latest_row["Digit2"]) if pd.notna(latest_row.get("Digit2", None)) else "",
+        "Digit3": int(latest_row["Digit3"]) if pd.notna(latest_row.get("Digit3", None)) else "",
     }
 
     predictions = predict_next_numbers(df)
@@ -45,11 +43,10 @@ def index():
         "Cash 3 draws are independent. Historical frequency does not guarantee future results. "
         "Use the combinations for informational purposes only."
     )
-    recent_draws = df.head(10)
-    # Convert recent draws to serializable dicts with string date
-    recent = []
-    for _, r in recent_draws.iterrows():
-        recent.append({
+
+    recent_draws = []
+    for _, r in df.head(10).iterrows():
+        recent_draws.append({
             "Date": r["Date"].strftime("%Y-%m-%d") if not pd.isna(r["Date"]) else "",
             "Draw": r.get("Draw", ""),
             "DrawTime": r.get("DrawTime", ""),
@@ -63,10 +60,9 @@ def index():
         latest=latest,
         predictions=predictions,
         disclaimer=disclaimer,
-        recent_draws=recent,
+        recent_draws=recent_draws,
     )
 
-# (Optional) simple health/prediction APIs
 @app.route('/health')
 def health():
     try:
@@ -75,7 +71,7 @@ def health():
         return jsonify({
             "status": "ok" if not df.empty else "no_data",
             "rows": len(df),
-            "latest_draw_date": str(last_date) if last_date is not None else None
+            "latest_draw_date": str(last_date.date()) if last_date is not None else None
         })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
