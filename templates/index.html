@@ -40,6 +40,12 @@
     {% endif %}
 
     <div class="section card">
+        <h2>Accuracy Score (Last {{ accuracy.total }} Draws)</h2>
+        <p><strong>Exact Match:</strong> {{ accuracy.exact }} of {{ accuracy.total }} ({{ ((accuracy.exact / accuracy.total) * 100) | round(1) }}%)</p>
+        <p><strong>Any Order Match:</strong> {{ accuracy.any_order }} of {{ accuracy.total }} ({{ ((accuracy.any_order / accuracy.total) * 100) | round(1) }}%)</p>
+    </div>
+
+    <div class="section card">
         <h2>Interactive Chart</h2>
         <div id="chart"></div>
         <script>
