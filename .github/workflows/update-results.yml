@@ -2,13 +2,10 @@ name: Update GA Cash 3 Results
 
 on:
   schedule:
-    # Midday draw (12:20 PM ET) +30m => 12:50 PM ET = 16:50 UTC
-    - cron: '50 16 * * *'
-    # Evening draw (6:59 PM ET) +30m => 7:29 PM ET = 23:29 UTC
-    - cron: '29 23 * * *'
-    # Night draw (11:34 PM ET) +30m => 12:04 AM ET next day = 04:04 UTC
-    - cron: '4 4 * * *'
-  workflow_dispatch: {}
+    - cron: '50 16 * * *'  # 12:50 PM EDT (30m after Midday draw)
+    - cron: '29 23 * * *'  # 11:29 PM UTC is 6:29 PM EDT (30m after Evening draw at 6:59pm -> 23:29 UTC)
+    - cron: '04 04 * * *'  # 4:04 AM UTC (30m after Night draw at 11:34 PM EDT -> 04:04 UTC next day)
+  workflow_dispatch:
 
 jobs:
   update:
@@ -19,22 +16,18 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install pandas requests beautifulsoup4
+        run: pip install -r requirements.txt
 
       - name: Run update script
         run: python update_csv.py
 
-      - name: Commit updated CSV if changed
+      - name: Commit & push if changed
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet; then
-            echo "No changes to commit"
-          else
-            git add data/ga_cash3_history.csv
-            git commit -m "🔄 Auto-update Cash3 CSV"
-            git push
-          fi
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git add data/ga_cash3_history.csv
+          git diff --quiet --staged || git commit -m "🔄 Auto-update CSV with latest result"
+          git push origin main
