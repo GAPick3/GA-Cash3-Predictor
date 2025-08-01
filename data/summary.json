@@ -1,0 +1,15 @@
+
+---
+
+## 10. Optional further improvements (not required immediately)
+
+- Cache summary in memory on Flask side to reduce I/O.
+- Expose `/api/summary` and `/api/predict` JSON endpoints.
+- Add small client-side JavaScript to fetch `summary.json` for dynamic UI.
+- Add tests for parsing functions using sample `latest.htm` and `latest.pdf`.
+- Introduce a basic rate limiter or lock around `prepare_data.py` when invoked concurrently.
+
+---
+
+Would you like me to generate these as actual files in a canvas (e.g., `prepare_data.py`, updated `predictor.py`, improved `index.html`, and updated workflow YAML), or do you want the raw text here so you can paste them into your repo?
+::contentReference[oaicite:0]{index=0}
