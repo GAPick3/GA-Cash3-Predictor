@@ -1,113 +1,98 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>GA Cash 3 Predictor</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <script src="https://cdn.tailwindcss.com"></script>
+  <meta charset="utf-8">
+  <title>GA Cash3 Predictor</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body {
+      font-family: system-ui,-apple-system,BlinkMacSystemFont,sans-serif;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 1rem;
+      background: #f5f7fa;
+      color: #1f2d3a;
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 1rem 1.5rem;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.05);
+      margin-bottom: 1rem;
+    }
+    .badge {
+      display: inline-block;
+      background: #2563eb;
+      color: white;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      margin-right: 6px;
+    }
+    .grid {
+      display: grid;
+      gap: 1rem;
+    }
+    .two {
+      grid-template-columns: repeat(auto-fit,minmax(220px,1fr));
+    }
+    h1 { margin-top:0; }
+    .small { font-size: .9rem; color: #555; }
+    .error { background: #ffe3e3; border: 1px solid #ff8a8a; padding: 10px; border-radius:6px; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { text-align:left; padding:8px; }
+    th { background:#eef2f7; }
+    tr:nth-child(even){ background:#f9f9fb; }
+  </style>
 </head>
-<body class="bg-gray-100 font-sans leading-normal">
-  <div class="max-w-3xl mx-auto py-8 px-4">
-    <header class="mb-6">
-      <h1 class="text-3xl font-bold mb-1">GA Cash 3 Predictor</h1>
-      <p class="text-gray-600">Latest draw, predictions, and summary at a glance.</p>
-    </header>
-
+<body>
+  <div class="card">
+    <h1>GA Cash3 Predictor</h1>
     {% if error %}
-      <div class="bg-red-100 border border-red-300 text-red-800 px-4 py-3 rounded mb-4">
-        {{ error }}
-      </div>
+      <div class="error">{{ error }}</div>
     {% endif %}
-
-    <!-- Latest draw -->
-    <section class="mb-6">
-      <h2 class="text-xl font-semibold mb-2">Latest Draw</h2>
-      {% if latest %}
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="bg-white shadow rounded p-4">
-            <div><strong>Date:</strong> {{ latest.Date or "N/A" }}</div>
-            <div><strong>Draw:</strong> {{ latest.Draw or "N/A" }}</div>
-            <div><strong>Time:</strong> {{ latest.DrawTime or "N/A" }}</div>
-            <div><strong>Numbers:</strong> {{ latest.Triplet or "N/A" }}</div>
-          </div>
-          <div class="bg-white shadow rounded p-4">
-            <div class="mb-1"><strong>Filter:</strong></div>
-            <div class="flex gap-2 flex-wrap">
-              <a href="/" class="px-3 py-1 bg-blue-500 text-white rounded text-sm">All</a>
-              <a href="/?draw=Midday" class="px-3 py-1 bg-green-500 text-white rounded text-sm">Midday</a>
-              <a href="/?draw=Evening" class="px-3 py-1 bg-yellow-500 text-white rounded text-sm">Evening</a>
-              <a href="/?draw=Night" class="px-3 py-1 bg-purple-500 text-white rounded text-sm">Night</a>
-            </div>
-          </div>
+    {% if latest %}
+      <div class="grid two">
+        <div>
+          <div class="badge">Latest Draw</div>
+          <p><strong>Date:</strong> {{ latest.Date }}</p>
+          <p><strong>Draw:</strong> {{ latest.Draw }}</p>
+          <p><strong>Time:</strong> {{ latest.DrawTime }}</p>
+          <p><strong>Numbers:</strong> {{ latest.Digit1 }} {{ latest.Digit2 }} {{ latest.Digit3 }}</p>
         </div>
-      {% else %}
-        <div class="bg-yellow-100 p-4 rounded">No latest draw available yet.</div>
-      {% endif %}
-    </section>
-
-    <!-- Predictions -->
-    <section class="mb-6">
-      <h2 class="text-xl font-semibold mb-2">Predictions{% if draw_filter %} ({{ draw_filter }}){% endif %}</h2>
-      {% if predictions %}
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {% for p in predictions %}
-            <div class="bg-white shadow rounded p-4">
-              <div class="text-lg font-mono">{{ p.triplet }}</div>
-              <div class="text-sm text-gray-600">Seen {{ p.count }} times</div>
-            </div>
-          {% endfor %}
+        <div>
+          <div class="badge">Summary</div>
+          {% if summary.total_draws %}
+            <p><strong>Total Draws:</strong> {{ summary.total_draws }}</p>
+            <p><strong>Last Updated:</strong> {{ summary.last_updated }}</p>
+          {% else %}
+            <p class="small">No summary available yet.</p>
+          {% endif %}
         </div>
-      {% else %}
-        <div class="text-gray-700">No prediction data available.</div>
-      {% endif %}
-    </section>
-
-    <!-- Summary -->
-    <section class="mb-6">
-      <h2 class="text-xl font-semibold mb-2">Summary Dashboard</h2>
-      {% if summary and summary.top_triplets %}
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <!-- Top triplets -->
-          <div class="bg-white shadow rounded p-4">
-            <h3 class="font-semibold mb-2">Top Triplets</h3>
-            <ul class="space-y-1">
-              {% for item in summary.top_triplets %}
-                <li class="flex justify-between">
-                  <div class="font-mono">{{ item.triplet }}</div>
-                  <div class="text-sm text-gray-500">x{{ item.count }} (last: {{ item.last_seen }})</div>
-                </li>
-              {% endfor %}
-            </ul>
-          </div>
-          <!-- Digit frequencies -->
-          <div class="bg-white shadow rounded p-4">
-            <h3 class="font-semibold mb-2">Digit Position Frequencies</h3>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {% for pos, counts in summary.digit_position_counts.items() %}
-                <div>
-                  <div class="font-medium">{{ pos }}</div>
-                  <div class="text-xs">
-                    {% for digit, cnt in counts.items() %}
-                      <div>{{ digit }}: {{ cnt }}</div>
-                    {% endfor %}
-                  </div>
-                </div>
-              {% endfor %}
-            </div>
-          </div>
-        </div>
-        <div class="mt-4">
-          <div><strong>Total draws:</strong> {{ summary.total_draws }}</div>
-          <div><strong>Last updated (UTC):</strong> {{ summary.last_updated }}</div>
-        </div>
-      {% else %}
-        <div class="text-gray-700">Summary data unavailable.</div>
-      {% endif %}
-    </section>
-
-    <footer class="text-center text-sm text-gray-500 mt-10">
-      Built with &hearts; • Data updated automatically.
-    </footer>
+      </div>
+    {% else %}
+      <p>No draw data available yet. It will populate after the next update.</p>
+    {% endif %}
   </div>
+
+  {% if summary.top_triplets %}
+  <div class="card">
+    <div class="badge">Top Triplets</div>
+    <table>
+      <thead>
+        <tr><th>Triplet</th><th>Count</th><th>Last Seen</th></tr>
+      </thead>
+      <tbody>
+        {% for t in summary.top_triplets %}
+        <tr>
+          <td>{{ t.triplet }}</td>
+          <td>{{ t.count }}</td>
+          <td>{{ t.last_seen }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
 </body>
 </html>
