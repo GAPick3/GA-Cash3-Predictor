@@ -1,70 +1,152 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="en" class="bg-gray-50">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
   <title>GA Cash 3 Predictor</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 2rem; }
-    .card { border: 1px solid #ccc; padding: 1rem; margin-bottom: 1rem; border-radius: 8px; }
-    .triplet { font-weight: bold; font-size: 1.2em; }
-    .section { margin-top: 1rem; }
-    .small { color: #555; font-size: 0.9em; }
-  </style>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.4.8/dist/tailwind.min.css" rel="stylesheet">
 </head>
-<body>
-  <h1>Georgia Cash 3 Predictor</h1>
+<body class="min-h-screen font-sans p-4">
+  <div class="max-w-4xl mx-auto">
+    <header class="mb-6">
+      <h1 class="text-3xl font-bold mb-1">GA Cash 3 Predictor</h1>
+      <p class="text-sm text-gray-600">Frequency-based predictions & history. Draws: Midday, Evening, Night.</p>
+    </header>
 
-  {% if error %}
-    <div class="card" style="background:#ffe6e6;">
-      <strong>Error:</strong> {{ error }}
-    </div>
-  {% else %}
-    <div class="card">
-      <div><strong>Latest Draw:</strong></div>
-      <div class="section">
-        <div><strong>Date:</strong> {{ latest.Date }}</div>
-        <div><strong>Draw:</strong> {{ latest.Draw }} at {{ latest.DrawTime }}</div>
-        <div><strong>Numbers:</strong> <span class="triplet">{{ latest.Digit1 }} {{ latest.Digit2 }} {{ latest.Digit3 }}</span></div>
+    {% if error %}
+      <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+        {{ error }}
       </div>
-      <div class="small">Last updated: {{ updated }}</div>
-    </div>
+    {% endif %}
 
-    <div class="card">
-      <h2>Top Predictions (Overall)</h2>
-      <div class="section">
-        {% for p in predictions %}
-          <div class="triplet">{{ p[0] }} {{ p[1] }} {{ p[2] if p|length>2 else '' }}</div>
-        {% endfor %}
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-white p-4 rounded shadow">
+        <h2 class="font-semibold mb-2">Latest Draw</h2>
+        {% if latest %}
+          <div class="text-sm">
+            <div><strong>Date:</strong> {{ latest.Date.strftime('%Y-%m-%d') if latest.Date is string else latest.Date }}</div>
+            <div><strong>Draw:</strong> {{ latest.Draw }}</div>
+            <div><strong>Time:</strong> {{ latest.DrawTime }}</div>
+            <div><strong>Numbers:</strong> {{ latest.Digit1 }} {{ latest.Digit2 }} {{ latest.Digit3 }}</div>
+          </div>
+        {% else %}
+          <div>No data yet.</div>
+        {% endif %}
       </div>
-    </div>
 
-    <div class="card">
-      <h2>Top Predictions by Draw</h2>
-      {% for label, combos in draw_specific.items() %}
-        <div class="section">
-          <strong>{{ label }}</strong>
-          {% if combos %}
-            {% for c in combos %}
-              <div>{{ c[0] }} {{ c[1] }} {{ c[2] }}</div>
-            {% endfor %}
-          {% else %}
-            <div>No data</div>
-          {% endif %}
+      <div class="bg-white p-4 rounded shadow">
+        <h2 class="font-semibold mb-2">Predictions {% if draw_filter %}for {{ draw_filter }}{% endif %}</h2>
+        <div class="flex flex-wrap gap-2">
+          {% for p in predictions %}
+            <div class="bg-indigo-100 text-indigo-800 px-3 py-1 rounded font-mono">{{ p }}</div>
+          {% endfor %}
         </div>
-      {% endfor %}
+      </div>
+
+      <div class="bg-white p-4 rounded shadow">
+        <h2 class="font-semibold mb-2">Status</h2>
+        <div class="text-sm space-y-1">
+          <div><strong>Last Source:</strong> {{ status.last_source or 'n/a' }}</div>
+          <div><strong>Last Success:</strong> {{ status.last_success or 'n/a' }}</div>
+          <div><strong>Filtered Draw:</strong> {{ draw_filter or 'All' }}</div>
+        </div>
+        <form method="get" class="mt-3">
+          <label class="block text-xs font-medium">Filter Draw</label>
+          <select name="draw" class="border px-2 py-1 rounded w-full">
+            <option value="">All</option>
+            <option value="Midday" {% if draw_filter=='Midday' %}selected{% endif %}>Midday</option>
+            <option value="Evening" {% if draw_filter=='Evening' %}selected{% endif %}>Evening</option>
+            <option value="Night" {% if draw_filter=='Night' %}selected{% endif %}>Night</option>
+          </select>
+          <button type="submit" class="mt-2 bg-indigo-600 text-white px-3 py-1 rounded text-sm">Apply</button>
+        </form>
+      </div>
     </div>
 
-    <div class="card">
-      <h2>Summary</h2>
-      <div>Total Draws: {{ stats.total_draws }}</div>
-      <div>Top Overall Combos: {{ stats.top_overall }}</div>
-      <div>Top by Draw:</div>
-      <ul>
-        {% for k, v in stats.top_by_draw.items() %}
-          <li>{{ k }}: {{ v }}</li>
-        {% endfor %}
-      </ul>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-white p-4 rounded shadow">
+        <h3 class="font-semibold mb-2">Top Triplets</h3>
+        <div class="flex flex-wrap gap-2">
+          {% for t in top_triplets %}
+            <div class="bg-green-100 text-green-800 px-3 py-1 rounded font-mono">{{ t }}</div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="bg-white p-4 rounded shadow">
+        <h3 class="font-semibold mb-2">Hot / Cold Triplets</h3>
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div>
+            <div class="font-medium">Hot</div>
+            {% for t, short, long in hot_cold.hot %}
+              <div class="flex justify-between">
+                <span>{{ t }}</span>
+                <span>{{ short }}/{{ long }}</span>
+              </div>
+            {% endfor %}
+          </div>
+          <div>
+            <div class="font-medium">Cold</div>
+            {% for t, short, long in hot_cold.cold %}
+              <div class="flex justify-between">
+                <span>{{ t }}</span>
+                <span>{{ short }}/{{ long }}</span>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
     </div>
-  {% endif %}
+
+    <div class="bg-white p-4 rounded shadow mb-6">
+      <h2 class="font-semibold mb-2">Manual Actions</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <form action="/upload_csv" method="post" enctype="multipart/form-data">
+            <div class="mb-1"><strong>Upload CSV</strong></div>
+            <input type="file" name="file" accept=".csv" class="mb-2" required />
+            <button type="submit" class="bg-blue-600 text-white px-3 py-1 rounded text-sm">Upload</button>
+          </form>
+        </div>
+        <div>
+          <form action="/add_draw" method="post" class="grid grid-cols-2 gap-2">
+            <div>
+              <div class="text-xs">Date</div>
+              <input type="date" name="date" required class="border px-2 py-1 rounded w-full" />
+            </div>
+            <div>
+              <div class="text-xs">Draw</div>
+              <select name="draw" required class="border px-2 py-1 rounded w-full">
+                <option>Midday</option>
+                <option>Evening</option>
+                <option>Night</option>
+              </select>
+            </div>
+            <div>
+              <div class="text-xs">Draw Time</div>
+              <input type="text" name="draw_time" placeholder="e.g. 12:20 PM" required class="border px-2 py-1 rounded w-full" />
+            </div>
+            <div>
+              <div class="text-xs">Digits</div>
+              <div class="flex gap-1">
+                <input name="digit1" type="number" min="0" max="9" required class="border px-2 py-1 rounded w-1/3" />
+                <input name="digit2" type="number" min="0" max="9" required class="border px-2 py-1 rounded w-1/3" />
+                <input name="digit3" type="number" min="0" max="9" required class="border px-2 py-1 rounded w-1/3" />
+              </div>
+            </div>
+            <div class="col-span-2">
+              <button type="submit" class="bg-green-600 text-white px-3 py-1 rounded text-sm mt-2">Add Draw</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <footer class="text-center text-xs text-gray-500 mt-8">
+      <div>Data source: PDF / local historical CSV.</div>
+      <div>Last updated: {{ status.last_success or 'unknown' }}</div>
+    </footer>
+  </div>
 </body>
 </html>
