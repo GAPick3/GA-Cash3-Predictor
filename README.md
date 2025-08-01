@@ -1,15 +1,22 @@
-## 📁 Project Structure
+# GA Cash3 Predictor
 
-# GA-Cash3-Predictor 🎲
+## Overview
+Automated pipeline to ingest Georgia Cash 3 results, fallback to PDF if needed, compute summaries, and produce heuristic predictions.
 
-A lightweight Flask dashboard that ingests Georgia Cash 3 historical draw data, shows the latest draw, and summarizes frequency-based triplets (most/least common and digit frequencies). Designed for transparency—draws are independent; historical data is descriptive, not predictive.
+## Key components
+- `prepare_data.py`: orchestrates fetching (HTML snapshot → PDF fallback), normalization, history merge, and summary generation.
+- `fetch_html_snapshot.py`: (optional) renders the live site to produce `data/latest.htm` when direct scraping fails.
+- `predictor.py`: scores and suggests likely triplets based on frequency and recency.
+- `templates/index.html`: frontend displaying latest draw, predictions, and summaries.
 
-## 📌 Features
+## Automation
+GitHub Actions workflow (`.github/workflows/update.yml`) runs 30 minutes after each draw to refresh the data.
 
-- Loads cleaned Cash 3 results CSV (`Date`, `Draw`, `DrawTime`, `Digit1`, `Digit2`, `Digit3`)
-- Displays latest draw, scheduled time, and past combination statistics
-- Provides JSON endpoints for programmatic access
-- Automated updates 30 minutes after each draw via GitHub Actions
-- Disclaimer clarifying independence of draws
+## Local setup
+```sh
+python -m pip install -r requirements.txt
+# Optional: install Playwright (if using snapshot)
+playwright install
 
-## Required Files (repo layout)
+python prepare_data.py  # populates data/ga_cash3_history.csv and data/summary.json
+python app.py           # runs Flask app locally
