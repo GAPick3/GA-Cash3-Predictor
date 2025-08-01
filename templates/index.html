@@ -1,74 +1,70 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8" />
   <title>GA Cash 3 Predictor</title>
   <style>
-    body { font-family: sans-serif; max-width: 800px; margin: auto; padding: 1rem; }
-    .triplet { font-weight: bold; }
-    .card { padding: 1rem; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 1rem; }
-    .predictions { margin-top: 1rem; }
+    body { font-family: Arial, sans-serif; margin: 2rem; }
+    .card { border: 1px solid #ccc; padding: 1rem; margin-bottom: 1rem; border-radius: 8px; }
+    .triplet { font-weight: bold; font-size: 1.2em; }
+    .section { margin-top: 1rem; }
+    .small { color: #555; font-size: 0.9em; }
   </style>
 </head>
 <body>
   <h1>Georgia Cash 3 Predictor</h1>
 
   {% if error %}
-    <div style="color: red; margin-bottom:1rem;">{{ error }}</div>
-  {% endif %}
+    <div class="card" style="background:#ffe6e6;">
+      <strong>Error:</strong> {{ error }}
+    </div>
+  {% else %}
+    <div class="card">
+      <div><strong>Latest Draw:</strong></div>
+      <div class="section">
+        <div><strong>Date:</strong> {{ latest.Date }}</div>
+        <div><strong>Draw:</strong> {{ latest.Draw }} at {{ latest.DrawTime }}</div>
+        <div><strong>Numbers:</strong> <span class="triplet">{{ latest.Digit1 }} {{ latest.Digit2 }} {{ latest.Digit3 }}</span></div>
+      </div>
+      <div class="small">Last updated: {{ updated }}</div>
+    </div>
 
-  <div class="card">
-    <h2>Latest Draw</h2>
-    {% if latest %}
-      <div><strong>Date:</strong> {{ latest.Date or 'N/A' }}</div>
-      <div><strong>Draw:</strong> {{ latest.Draw or 'N/A' }}</div>
-      <div><strong>Scheduled Time:</strong> {{ latest.DrawTime or 'N/A' }}</div>
-      <div><strong>Numbers:</strong> <span class="triplet">{{ latest.Digit1 }} {{ latest.Digit2 }} {{ latest.Digit3 }}</span></div>
-    {% else %}
-      <div>No latest draw available.</div>
-    {% endif %}
-  </div>
-
-  <div class="card predictions">
-    <h2>Top {{ predictions|length if predictions else 0 }} Historical Triplets</h2>
-    {% if predictions %}
-      <ul>
+    <div class="card">
+      <h2>Top Predictions (Overall)</h2>
+      <div class="section">
         {% for p in predictions %}
-          <li>{{ p }}</li>
+          <div class="triplet">{{ p[0] }} {{ p[1] }} {{ p[2] if p|length>2 else '' }}</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Top Predictions by Draw</h2>
+      {% for label, combos in draw_specific.items() %}
+        <div class="section">
+          <strong>{{ label }}</strong>
+          {% if combos %}
+            {% for c in combos %}
+              <div>{{ c[0] }} {{ c[1] }} {{ c[2] }}</div>
+            {% endfor %}
+          {% else %}
+            <div>No data</div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="card">
+      <h2>Summary</h2>
+      <div>Total Draws: {{ stats.total_draws }}</div>
+      <div>Top Overall Combos: {{ stats.top_overall }}</div>
+      <div>Top by Draw:</div>
+      <ul>
+        {% for k, v in stats.top_by_draw.items() %}
+          <li>{{ k }}: {{ v }}</li>
         {% endfor %}
       </ul>
-    {% else %}
-      <div>No predictions available.</div>
-    {% endif %}
-  </div>
-
-  <div class="card">
-    <h3>Recent Draws</h3>
-    {% if recent_draws %}
-      <table border="1" cellpadding="6" cellspacing="0">
-        <thead>
-          <tr>
-            <th>Date</th><th>Draw</th><th>Time</th><th>Numbers</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for r in recent_draws %}
-            <tr>
-              <td>{{ r.Date }}</td>
-              <td>{{ r.Draw }}</td>
-              <td>{{ r.DrawTime }}</td>
-              <td>{{ r.Digit1 }} {{ r.Digit2 }} {{ r.Digit3 }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% else %}
-      <div>No recent draws.</div>
-    {% endif %}
-  </div>
-
-  <div style="font-size:0.8em; color:#555;">
-    {{ disclaimer }}
-  </div>
+    </div>
+  {% endif %}
 </body>
 </html>
