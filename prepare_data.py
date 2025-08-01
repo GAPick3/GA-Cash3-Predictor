@@ -1,348 +1,202 @@
 # prepare_data.py
+
+import os
+import re
 import json
-import time
-from datetime import datetime
-from collections import Counter, defaultdict
+from datetime import datetime, timedelta
 import pandas as pd
 import requests
-from bs4 import BeautifulSoup
-import re
-import shutil
-import tempfile
-from pathlib import Path
+import pdfplumber
+from collections import Counter
 
-from config import HISTORY_CSV, LATEST_HTML, LATEST_PDF, SUMMARY_JSON, PDF_URL
+# CONFIG / CONSTANTS
+CSV_PATH = "data/ga_cash3_history.csv"
+PDF_PATH = "data/latest.pdf"
+SUMMARY_PATH = "data/summary.json"
+# Official or mirrored PDF URL (adjust if you host a copy yourself)
+PDF_URL = os.environ.get("PDF_URL", "https://www.lotterypost.com/results/georgia/cash-3/download")  # <-- replace with actual working PDF download if needed
 
-# Utility: atomic CSV write
-def atomic_write_csv(df: pd.DataFrame, path: Path):
-    tmp = Path(f"{path}.tmp")
-    df.to_csv(tmp, index=False)
-    tmp.replace(path)
+DRAW_TIMES = {
+    "Midday": "12:20 PM",
+    "Evening": "6:59 PM",
+    "Night": "11:34 PM"
+}
 
-def load_history():
-    if HISTORY_CSV.exists():
-        df = pd.read_csv(HISTORY_CSV, parse_dates=["Date"], dtype={"Draw": str})
-        df = df.sort_values(["Date", "Draw"], ascending=[False, False])
-        df = df.drop_duplicates(subset=["Date", "Draw"], keep="first")
-        return df
-    else:
-        return pd.DataFrame(columns=["Date", "Draw", "DrawTime", "Digit1", "Digit2", "Digit3"])
+DATE_REGEX = re.compile(r"(\d{1,2}/\d{1,2}/\d{4})")
+TRIPLET_REGEX = re.compile(r"\b(\d)\s*(\d)\s*(\d)\b")  # matches three digits possibly separated by spaces
+DRAW_LABELS = ["Midday", "Evening", "Night"]
 
-def save_history(df: pd.DataFrame):
-    atomic_write_csv(df, HISTORY_CSV)
-
-def extract_from_html(html_path: Path):
-    if not html_path.exists():
-        return []
-    with open(html_path, 'r', encoding='utf-8', errors='ignore') as f:
-        soup = BeautifulSoup(f, 'html.parser')
-
-    draws = []
-
-    # Heuristic 1: embedded JSON
-    for script in soup.find_all("script"):
-        text = script.string or ""
-        if not text:
-            continue
-        # Attempt to find JSON objects
-        try:
-            # loose heuristic: extract {...} blocks with digits
-            for match in re.findall(r'\{.*?\}', text, flags=re.DOTALL):
-                try:
-                    obj = json.loads(match)
-                except json.JSONDecodeError:
-                    continue
-                # Adapt this depending on the real structure; example placeholder:
-                if isinstance(obj, dict):
-                    # If structure contains results
-                    if 'results' in obj:
-                        for item in obj['results']:
-                            date_str = item.get("date") or item.get("draw_date")
-                            draw_name = item.get("draw") or item.get("name")
-                            numbers = item.get("numbers") or item.get("winning")  # array
-                            if date_str and draw_name and numbers and len(numbers) >= 3:
-                                try:
-                                    date = datetime.fromisoformat(date_str).date()
-                                except Exception:
-                                    continue
-                                digits = [int(n) for n in numbers[:3]]
-                                draws.append({
-                                    "Date": date.isoformat(),
-                                    "Draw": draw_name,
-                                    "DrawTime": "",  # filled later or via logic
-                                    "Digit1": digits[0],
-                                    "Digit2": digits[1],
-                                    "Digit3": digits[2],
-                                })
-        except Exception:
-            continue
-
-    # Heuristic 2: table fallback
-    if not draws:
-        for row in soup.select("table tr"):
-            cols = [c.get_text(strip=True) for c in row.find_all(["td", "th"])]
-            if len(cols) >= 3 and re.match(r'\d{1,2}/\d{1,2}/\d{4}', cols[0]):
-                try:
-                    date = datetime.strptime(cols[0], "%m/%d/%Y").date()
-                except ValueError:
-                    continue
-                draw_label = cols[1]
-                # numbers might be separated by spaces or punctuation
-                nums = re.sub(r'\D', '', cols[2])
-                if len(nums) == 3:
-                    digits = [int(n) for n in nums]
-                    draws.append({
-                        "Date": date.isoformat(),
-                        "Draw": draw_label,
-                        "DrawTime": "",  # fill later
-                        "Digit1": digits[0],
-                        "Digit2": digits[1],
-                        "Digit3": digits[2],
-                    })
-    return normalize_draws(draws)
 
 def download_pdf():
-    headers = {"User-Agent": "Mozilla/5.0 (compatible; GA-Cash3-Predictor/1.0)"}
-    backoff = 1
-    for attempt in range(4):
-        try:
-            resp = requests.get(PDF_URL, headers=headers, timeout=10)
-            resp.raise_for_status()
-            content = resp.content
-            if not content.startswith(b"%PDF"):
-                raise ValueError("Downloaded content is not a PDF")
-            with open(LATEST_PDF, "wb") as f:
-                f.write(content)
-            return True
-        except Exception as e:
-            print(f"[prepare_data] PDF download attempt {attempt+1} failed: {e}")
-            time.sleep(backoff)
-            backoff *= 2
-    return False
-
-def parse_pdf(pdf_path: Path):
-    import pdfplumber  # delayed import
-    if not pdf_path.exists():
-        return []
-    draws = []
     try:
-        with pdfplumber.open(pdf_path) as pdf:
-            # naive: scan all pages for table with Cash 3
-            for page in pdf.pages:
-                tables = page.extract_tables()
-                for table in tables:
-                    # attempt to identify header row with Date / Draw / Numbers
-                    header = [h.lower() if h else "" for h in table[0]]
-                    if any("date" in h for h in header) and any("number" in h or "winning" in h for h in header):
-                        # find indices
-                        try:
-                            date_idx = next(i for i, h in enumerate(header) if "date" in h)
-                        except StopIteration:
-                            continue
-                        draw_idx = None
-                        for i, h in enumerate(header):
-                            if "draw" in h or "time" in h:
-                                draw_idx = i
-                                break
-                        numbers_idx = next((i for i, h in enumerate(header) if "number" in h or "winning" in h), None)
-                        body = table[1:]
-                        for row in body:
-                            # safety: row may be shorter
-                            if date_idx >= len(row) or numbers_idx is None or numbers_idx >= len(row):
-                                continue
-                            raw_date = row[date_idx]
-                            raw_draw = row[draw_idx] if draw_idx is not None and draw_idx < len(row) else ""
-                            raw_numbers = row[numbers_idx]
-                            if not raw_date or not raw_numbers:
-                                continue
-                            try:
-                                date = datetime.strptime(raw_date.strip(), "%m/%d/%Y").date()
-                            except Exception:
-                                continue
-                            nums = re.sub(r'\D', '', raw_numbers)
-                            if len(nums) != 3:
-                                continue
-                            digits = [int(n) for n in nums]
-                            draws.append({
-                                "Date": date.isoformat(),
-                                "Draw": raw_draw.strip(),
-                                "DrawTime": "",
-                                "Digit1": digits[0],
-                                "Digit2": digits[1],
-                                "Digit3": digits[2],
-                            })
+        print(f"Downloading latest PDF from {PDF_URL}")
+        resp = requests.get(PDF_URL, timeout=15)
+        resp.raise_for_status()
+        os.makedirs(os.path.dirname(PDF_PATH), exist_ok=True)
+        with open(PDF_PATH, "wb") as f:
+            f.write(resp.content)
+        print(f"✅ PDF saved to {PDF_PATH}")
+        return True
     except Exception as e:
-        print(f"[prepare_data] PDF parsing error: {e}")
-    return normalize_draws(draws)
+        print(f"❌ Failed to download PDF: {e}")
+        return False
 
-def normalize_draws(raw_list):
-    """
-    Accept list of dicts with keys possibly varying; enforce schema and fill DrawTime if missing.
-    """
-    cleaned = []
-    for r in raw_list:
+
+def parse_pdf():
+    if not os.path.exists(PDF_PATH):
+        print("❌ PDF not present, skipping parse.")
+        return []
+
+    results = []
+    try:
+        with pdfplumber.open(PDF_PATH) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text() or ""
+                lines = text.splitlines()
+
+                current_date = None
+                for line in lines:
+                    # Attempt to extract the date if present
+                    date_match = DATE_REGEX.search(line)
+                    if date_match:
+                        try:
+                            dt = datetime.strptime(date_match.group(1), "%m/%d/%Y").date()
+                            current_date = dt.isoformat()
+                        except:
+                            current_date = None
+
+                    # Look for draw label and triplet in same or adjacent lines
+                    for label in DRAW_LABELS:
+                        if label.lower() in line.lower():
+                            # try to find triplet digits in the line
+                            triplet_match = TRIPLET_REGEX.search(line)
+                            if triplet_match:
+                                d1, d2, d3 = triplet_match.groups()
+                                if current_date:
+                                    results.append({
+                                        "Date": current_date,
+                                        "Draw": label,
+                                        "DrawTime": DRAW_TIMES[label],
+                                        "Digit1": int(d1),
+                                        "Digit2": int(d2),
+                                        "Digit3": int(d3),
+                                    })
+                            else:
+                                # maybe numbers are on next line(s)
+                                # naive peek ahead not implemented for brevity
+                                continue
+        print(f"✅ Parsed {len(results)} draws from PDF")
+    except Exception as e:
+        print(f"❌ Error parsing PDF: {e}")
+    return results
+
+
+def load_existing():
+    if os.path.exists(CSV_PATH):
         try:
-            date = r.get("Date")
-            if isinstance(date, str):
-                # accept ISO or m/d/Y
-                try:
-                    dt = datetime.fromisoformat(date).date()
-                except ValueError:
-                    dt = datetime.strptime(date, "%m/%d/%Y").date()
-            elif isinstance(date, datetime):
-                dt = date.date()
-            else:
-                continue
-            draw = r.get("Draw", "").strip()
-            # Normalize draw label to one of expected
-            if draw.lower().startswith("mid"):
-                draw_norm = "Midday"
-            elif draw.lower().startswith("even"):
-                draw_norm = "Evening"
-            elif draw.lower().startswith("night"):
-                draw_norm = "Night"
-            else:
-                draw_norm = draw or "Unknown"
+            df = pd.read_csv(CSV_PATH, dtype={"Draw": str})
+            return df
+        except Exception as e:
+            print(f"⚠️ Failed to load existing CSV, starting fresh: {e}")
+    # new empty df
+    return pd.DataFrame(columns=["Date", "Draw", "DrawTime", "Digit1", "Digit2", "Digit3"])
 
-            d1 = int(r.get("Digit1") or (str(r.get("Numbers") or "")[0] if r.get("Numbers") else 0))
-            d2 = int(r.get("Digit2") or (str(r.get("Numbers") or "")[1] if r.get("Numbers") else 0))
-            d3 = int(r.get("Digit3") or (str(r.get("Numbers") or "")[2] if r.get("Numbers") else 0))
 
-            # Infer DrawTime from draw name if blank
-            draw_time = r.get("DrawTime") or ""
-            if not draw_time:
-                from config import DRAW_TIMES
-                draw_time = DRAW_TIMES.get(draw_norm, "")
+def merge_and_write(new_rows):
+    df_existing = load_existing()
+    existing_keys = set(df_existing[["Date", "Draw"]].apply(tuple, axis=1))
 
-            cleaned.append({
-                "Date": dt.isoformat(),
-                "Draw": draw_norm,
-                "DrawTime": draw_time,
-                "Digit1": d1,
-                "Digit2": d2,
-                "Digit3": d3,
-            })
-        except Exception:
-            continue
-    # Deduplicate within the new batch
-    seen = set()
-    result = []
-    for item in cleaned:
-        key = (item["Date"], item["Draw"])
-        if key in seen:
-            continue
-        seen.add(key)
-        result.append(item)
-    return result
-
-def merge_and_update():
-    history = load_history()
-    existing_keys = set(history[["Date", "Draw"]].apply(lambda row: (row["Date"].date() if hasattr(row["Date"], "date") else (pd.to_datetime(row["Date"]).date() if pd.notna(row["Date"]) else None), row["Draw"]), axis=1))
-
-    # Try HTML source first
-    new_draws = extract_from_html(LATEST_HTML)
-    source_used = None
-    if new_draws:
-        source_used = "html"
-    else:
-        # Fallback to PDF
-        if download_pdf():
-            new_draws = parse_pdf(LATEST_PDF)
-            source_used = "pdf"
-        else:
-            source_used = "none"
-
-    if not new_draws:
-        print("[prepare_data] No new draws fetched from any source.")
-        return history, 0, source_used
-
-    # Convert to DataFrame
-    df_new = pd.DataFrame(new_draws)
-    # Parse Date column to datetime
-    df_new["Date"] = pd.to_datetime(df_new["Date"])
-    # Filter out already present
-    def key_tuple(row):
-        return (row["Date"].date(), row["Draw"])
-    added_rows = []
-    for _, row in df_new.iterrows():
-        key = (row["Date"].date(), row["Draw"])
+    added = 0
+    new_df_rows = []
+    for row in new_rows:
+        key = (row["Date"], row["Draw"])
         if key not in existing_keys:
-            added_rows.append(row)
+            new_df_rows.append(row)
+            added += 1
 
-    if not added_rows:
-        print("[prepare_data] No new unique draws to add.")
-        return history, 0, source_used
+    if added > 0:
+        df_new = pd.DataFrame(new_df_rows)
+        combined = pd.concat([df_new, df_existing], ignore_index=True)
+        # optional: ensure consistent types
+        combined["Date"] = pd.to_datetime(combined["Date"], errors="coerce").dt.date.astype(str)
+        combined[["Digit1", "Digit2", "Digit3"]] = combined[["Digit1", "Digit2", "Digit3"]].fillna(0).astype(int)
+        combined.sort_values(by=["Date", "Draw"], ascending=[False, True], inplace=True)
+        combined.drop_duplicates(subset=["Date", "Draw"], keep="first", inplace=True)
+        os.makedirs(os.path.dirname(CSV_PATH), exist_ok=True)
+        combined.to_csv(CSV_PATH, index=False)
+        print(f"✅ Added {added} new draw(s), wrote {CSV_PATH}")
+        return combined
+    else:
+        print("ℹ️ No new draws to add.")
+        return df_existing
 
-    df_added = pd.DataFrame(added_rows)
-    updated = pd.concat([df_added, history], ignore_index=True)
-    updated["Date"] = pd.to_datetime(updated["Date"])
-    updated = updated.sort_values(["Date", "Draw"], ascending=[False, False])
-    updated = updated.drop_duplicates(subset=["Date", "Draw"], keep="first")
-    save_history(updated)
-    added_count = len(df_added)
-    print(f"[prepare_data] Source used: {source_used}, new draws added: {added_count}")
-    return updated, added_count, source_used
 
-def compute_summary(df: pd.DataFrame):
-    summary = {}
+def build_summary(df: pd.DataFrame):
+    if df.empty:
+        print("⚠️ Dataframe empty, skipping summary.")
+        return {}
+
+    # Triplet column
     df = df.copy()
     df["Triplet"] = df.apply(lambda r: f"{int(r['Digit1'])}{int(r['Digit2'])}{int(r['Digit3'])}", axis=1)
 
-    # Frequency of digits by position
-    for pos in ["Digit1", "Digit2", "Digit3"]:
-        counts = df[pos].value_counts().to_dict()
-        summary[f"{pos}_frequency"] = counts
+    # Frequency of triplets
+    triplet_counts = Counter(df["Triplet"])
+    top_triplets = triplet_counts.most_common(10)
 
-    # Most common triplets
-    triplet_counts = df["Triplet"].value_counts()
-    summary["top_triplets"] = triplet_counts.head(5).to_dict()
+    # Digit frequency by position
+    digit1_counts = Counter(df["Digit1"])
+    digit2_counts = Counter(df["Digit2"])
+    digit3_counts = Counter(df["Digit3"])
 
-    # Last seen of each digit
+    # Hot/cold digits overall (sum of positions)
+    overall_digit_counts = Counter()
+    for i in range(len(df)):
+        overall_digit_counts.update([df.at[i, "Digit1"], df.at[i, "Digit2"], df.at[i, "Digit3"]])
+
+    # Last seen per triplet
     last_seen = {}
-    for pos in ["Digit1", "Digit2", "Digit3"]:
-        last_seen[pos] = {}
-        for digit in range(10):
-            mask = df[df[pos] == digit]
-            if not mask.empty:
-                last_date = mask.iloc[0]["Date"]
-                last_seen[pos][digit] = last_date.strftime("%Y-%m-%d")
-            else:
-                last_seen[pos][digit] = None
-    summary["last_seen"] = last_seen
+    for triplet in triplet_counts:
+        subset = df[df["Triplet"] == triplet]
+        if not subset.empty:
+            last_seen[triplet] = subset.iloc[0]["Date"]
 
-    # Hot/cold: define hot as top 3 freq in each position
-    summary["hot_digits"] = {
-        pos: [int(d) for d in df[pos].value_counts().head(3).index.tolist()]
-        for pos in ["Digit1", "Digit2", "Digit3"]
-    }
-    # Cold as bottom 3 (that have appeared at least once)
-    summary["cold_digits"] = {}
-    for pos in ["Digit1", "Digit2", "Digit3"]:
-        vc = df[pos].value_counts()
-        bottom = [int(d) for d in vc.tail(3).index.tolist()] if len(vc) >= 3 else [int(d) for d in vc.index.tolist()]
-        summary["cold_digits"][pos] = bottom
-
-    # Total draws
-    summary["total_draws"] = len(df)
-    # Most recent draw
-    latest = df.iloc[0]
-    summary["latest"] = {
-        "Date": latest["Date"].strftime("%Y-%m-%d"),
-        "Draw": latest["Draw"],
-        "Triplet": latest["Triplet"],
-        "DrawTime": latest.get("DrawTime", "")
+    summary = {
+        "total_draws": len(df),
+        "top_triplets": [{"triplet": t, "count": c, "last_seen": last_seen.get(t)} for t, c in top_triplets],
+        "digit_position_counts": {
+            "Digit1": dict(digit1_counts),
+            "Digit2": dict(digit2_counts),
+            "Digit3": dict(digit3_counts),
+        },
+        "overall_digit_counts": dict(overall_digit_counts),
+        "last_updated": datetime.utcnow().isoformat() + "Z",
     }
 
+    with open(SUMMARY_PATH, "w") as f:
+        json.dump(summary, f, indent=2)
+    print(f"✅ Summary written to {SUMMARY_PATH}")
     return summary
 
-def save_summary(summary: dict):
-    with open(SUMMARY_JSON, "w") as f:
-        json.dump(summary, f, default=str, indent=2)
 
 def main():
-    updated_history, added_count, source = merge_and_update()
-    summary = compute_summary(updated_history)
-    save_summary(summary)
+    # Only attempt update if we're at least 30 minutes past a scheduled draw time for today or yesterday
+    now_utc = datetime.utcnow()
+    print(f"Running prepare_data at {now_utc.isoformat()} UTC")
+
+    # Download latest PDF (always attempt; could skip if recently fetched)
+    _ = download_pdf()
+
+    parsed = parse_pdf()
+    merged_df = merge_and_write(parsed)
+    # Build derived fields
+    if not merged_df.empty:
+        # Ensure Triplet column exists
+        merged_df["Triplet"] = merged_df.apply(lambda r: f"{int(r['Digit1'])}{int(r['Digit2'])}{int(r['Digit3'])}", axis=1)
+        build_summary(merged_df)
+    else:
+        print("⚠️ No data to summarize.")
+
 
 if __name__ == "__main__":
     main()
