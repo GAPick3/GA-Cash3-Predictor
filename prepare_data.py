@@ -3,18 +3,17 @@
 import os
 import re
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import pandas as pd
 import requests
 import pdfplumber
+from bs4 import BeautifulSoup
 from collections import Counter
-import time
 
-# CONFIG / CONSTANTS
 CSV_PATH = "data/ga_cash3_history.csv"
 PDF_PATH = "data/latest.pdf"
+HTML_FALLBACK = "latest.htm"  # uploaded manually or via pipeline
 SUMMARY_PATH = "data/summary.json"
-# Replace or override via env if you host a copy yourself:
 PDF_URL = os.environ.get("PDF_URL", "https://www.lotterypost.com/results/georgia/cash-3/download")
 
 DRAW_TIMES = {
@@ -22,16 +21,13 @@ DRAW_TIMES = {
     "Evening": "6:59 PM",
     "Night": "11:34 PM"
 }
-
+DRAW_LABELS = list(DRAW_TIMES.keys())
 DATE_REGEX = re.compile(r"(\d{1,2}/\d{1,2}/\d{4})")
-TRIPLET_REGEX = re.compile(r"\b(\d)\s*(\d)\s*(\d)\b")  # three digits potentially spaced
-DRAW_LABELS = ["Midday", "Evening", "Night"]
+TRIPLET_REGEX = re.compile(r"\b(\d)\s*(\d)\s*(\d)\b")
 
 
 def download_pdf():
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-    }
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     try:
         print(f"Downloading latest PDF from {PDF_URL}")
         resp = requests.get(PDF_URL, headers=headers, timeout=15)
@@ -48,37 +44,33 @@ def download_pdf():
 
 def parse_pdf():
     if not os.path.exists(PDF_PATH):
-        print("❌ PDF not present, skipping parse.")
+        print("⚠️ PDF not present, skipping PDF parse.")
         return []
 
-    results = []
+    parsed = []
     try:
         with pdfplumber.open(PDF_PATH) as pdf:
             for page in pdf.pages:
                 text = page.extract_text() or ""
                 lines = text.splitlines()
-
                 current_date = None
-                for i, line in enumerate(lines):
-                    # Extract date if present
-                    date_match = DATE_REGEX.search(line)
-                    if date_match:
+                for idx, line in enumerate(lines):
+                    # date detection
+                    dm = DATE_REGEX.search(line)
+                    if dm:
                         try:
-                            dt = datetime.strptime(date_match.group(1), "%m/%d/%Y").date()
-                            current_date = dt.isoformat()
-                        except Exception:
+                            current_date = datetime.strptime(dm.group(1), "%m/%d/%Y").date().isoformat()
+                        except:
                             current_date = None
 
                     for label in DRAW_LABELS:
                         if label.lower() in line.lower():
-                            # Try to find triplet on same line
-                            triplet_match = TRIPLET_REGEX.search(line)
-                            if not triplet_match and i + 1 < len(lines):
-                                # fallback to next line
-                                triplet_match = TRIPLET_REGEX.search(lines[i + 1])
-                            if triplet_match and current_date:
-                                d1, d2, d3 = triplet_match.groups()
-                                results.append({
+                            match = TRIPLET_REGEX.search(line)
+                            if not match and idx + 1 < len(lines):
+                                match = TRIPLET_REGEX.search(lines[idx + 1])
+                            if match and current_date:
+                                d1, d2, d3 = match.groups()
+                                parsed.append({
                                     "Date": current_date,
                                     "Draw": label,
                                     "DrawTime": DRAW_TIMES[label],
@@ -86,10 +78,51 @@ def parse_pdf():
                                     "Digit2": int(d2),
                                     "Digit3": int(d3),
                                 })
-        print(f"✅ Parsed {len(results)} draws from PDF")
+        print(f"✅ Parsed {len(parsed)} draws from PDF")
     except Exception as e:
-        print(f"❌ Error parsing PDF: {e}")
-    return results
+        print(f"❌ Error during PDF parsing: {e}")
+    return parsed
+
+
+def parse_html_fallback():
+    if not os.path.exists(HTML_FALLBACK):
+        print("⚠️ No HTML fallback file; skipping HTML parse.")
+        return []
+
+    parsed = []
+    try:
+        with open(HTML_FALLBACK, "r", encoding="utf-8", errors="ignore") as f:
+            soup = BeautifulSoup(f.read(), "html.parser")
+        # This assumes the structure has rows with date, draw label, and numbers.
+        table_rows = soup.select("table.results tbody tr")
+        for row in table_rows:
+            cols = [c.get_text(strip=True) for c in row.find_all("td")]
+            if len(cols) < 3:
+                continue
+            date_str = cols[0]
+            draw_label = cols[1]
+            number_text = cols[2]
+            if draw_label not in DRAW_LABELS:
+                continue
+            try:
+                draw_date = datetime.strptime(date_str, "%m/%d/%Y").date().isoformat()
+            except:
+                continue
+            digits = [int(d) for d in re.findall(r"\d", number_text)][:3]
+            if len(digits) != 3:
+                continue
+            parsed.append({
+                "Date": draw_date,
+                "Draw": draw_label,
+                "DrawTime": DRAW_TIMES[draw_label],
+                "Digit1": digits[0],
+                "Digit2": digits[1],
+                "Digit3": digits[2],
+            })
+        print(f"✅ Parsed {len(parsed)} draws from HTML fallback")
+    except Exception as e:
+        print(f"❌ HTML fallback parsing failed: {e}")
+    return parsed
 
 
 def load_existing():
@@ -98,107 +131,81 @@ def load_existing():
             df = pd.read_csv(CSV_PATH, dtype={"Draw": str})
             return df
         except Exception as e:
-            print(f"⚠️ Failed to load existing CSV, starting fresh: {e}")
+            print(f"⚠️ Could not read existing CSV, recreating: {e}")
     return pd.DataFrame(columns=["Date", "Draw", "DrawTime", "Digit1", "Digit2", "Digit3"])
 
 
 def merge_and_write(new_rows):
-    df_existing = load_existing()
-    existing_keys = set(df_existing[["Date", "Draw"]].apply(tuple, axis=1))
-
-    added = 0
-    new_df_rows = []
-    for row in new_rows:
-        key = (row["Date"], row["Draw"])
+    existing = load_existing()
+    existing_keys = set(existing[["Date", "Draw"]].apply(tuple, axis=1))
+    to_add = []
+    for r in new_rows:
+        key = (r["Date"], r["Draw"])
         if key not in existing_keys:
-            new_df_rows.append(row)
-            added += 1
+            to_add.append(r)
 
-    if added > 0:
-        df_new = pd.DataFrame(new_df_rows)
-        combined = pd.concat([df_new, df_existing], ignore_index=True)
+    if to_add:
+        df_new = pd.DataFrame(to_add)
+        combined = pd.concat([df_new, existing], ignore_index=True)
 
-        # Normalize types
         combined["Date"] = pd.to_datetime(combined["Date"], errors="coerce").dt.date.astype(str)
         for col in ["Digit1", "Digit2", "Digit3"]:
             combined[col] = pd.to_numeric(combined[col], errors="coerce").fillna(0).astype(int)
 
-        # Triplet for internal consistency
         combined["Triplet"] = combined.apply(lambda r: f"{int(r['Digit1'])}{int(r['Digit2'])}{int(r['Digit3'])}", axis=1)
-
         combined.sort_values(by=["Date", "Draw"], ascending=[False, True], inplace=True)
         combined.drop_duplicates(subset=["Date", "Draw"], keep="first", inplace=True)
         os.makedirs(os.path.dirname(CSV_PATH), exist_ok=True)
         combined.drop(columns=["Triplet"], errors="ignore").to_csv(CSV_PATH, index=False)
-        print(f"✅ Added {added} new draw(s), wrote {CSV_PATH}")
+        print(f"✅ Added {len(to_add)} new draw(s), wrote {CSV_PATH}")
         return combined
     else:
         print("ℹ️ No new draws to add.")
-        # ensure Triplet exists for downstream
-        if "Triplet" not in df_existing.columns:
-            df_existing["Triplet"] = df_existing.apply(lambda r: f"{int(r['Digit1'])}{int(r['Digit2'])}{int(r['Digit3'])}", axis=1)
-        return df_existing
+        if "Triplet" not in existing.columns:
+            existing["Triplet"] = existing.apply(lambda r: f"{int(r['Digit1'])}{int(r['Digit2'])}{int(r['Digit3'])}", axis=1)
+        return existing
 
 
-def sanitize_counter(counter_obj):
-    """
-    Turn Counter with possibly numpy keys/values into plain serializable dict with string keys and int values.
-    """
-    out = {}
-    for k, v in counter_obj.items():
-        try:
-            key = str(int(k))
-        except Exception:
-            key = str(k)
-        out[key] = int(v)
-    return out
+def sanitize_counter(cnt):
+    return {str(k): int(v) for k, v in cnt.items()}
 
 
-def build_summary(df: pd.DataFrame):
+def build_summary(df):
     if df.empty:
-        print("⚠️ Dataframe empty, skipping summary.")
+        print("⚠️ Empty dataframe; skipping summary.")
         return {}
 
     df = df.copy()
     df["Triplet"] = df.apply(lambda r: f"{int(r['Digit1'])}{int(r['Digit2'])}{int(r['Digit3'])}", axis=1)
-
-    # Frequency of triplets
     triplet_counts = Counter(df["Triplet"])
-    top_triplets_raw = triplet_counts.most_common(10)
+    top = triplet_counts.most_common(10)
 
-    # Digit frequency by position
-    digit1_counts = Counter(df["Digit1"])
-    digit2_counts = Counter(df["Digit2"])
-    digit3_counts = Counter(df["Digit3"])
+    digit1 = Counter(df["Digit1"])
+    digit2 = Counter(df["Digit2"])
+    digit3 = Counter(df["Digit3"])
 
-    # Overall digit frequency (all positions)
-    overall_digit_counts = Counter()
+    overall = Counter()
     for _, row in df.iterrows():
-        overall_digit_counts.update([row["Digit1"], row["Digit2"], row["Digit3"]])
+        overall.update([row["Digit1"], row["Digit2"], row["Digit3"]])
 
-    # Last seen per triplet (most recent is first because data is sorted desc)
     last_seen = {}
-    for triplet in triplet_counts:
-        subset = df[df["Triplet"] == triplet]
+    for t in triplet_counts:
+        subset = df[df["Triplet"] == t]
         if not subset.empty:
-            last_seen[triplet] = subset.iloc[0]["Date"]
+            last_seen[t] = subset.iloc[0]["Date"]
 
     summary = {
         "total_draws": int(len(df)),
         "top_triplets": [
-            {
-                "triplet": t,
-                "count": int(c),
-                "last_seen": last_seen.get(t)
-            }
-            for t, c in top_triplets_raw
+            {"triplet": t, "count": int(c), "last_seen": last_seen.get(t)}
+            for t, c in top
         ],
         "digit_position_counts": {
-            "Digit1": sanitize_counter(digit1_counts),
-            "Digit2": sanitize_counter(digit2_counts),
-            "Digit3": sanitize_counter(digit3_counts),
+            "Digit1": sanitize_counter(digit1),
+            "Digit2": sanitize_counter(digit2),
+            "Digit3": sanitize_counter(digit3),
         },
-        "overall_digit_counts": sanitize_counter(overall_digit_counts),
+        "overall_digit_counts": sanitize_counter(overall),
         "last_updated": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -213,24 +220,21 @@ def build_summary(df: pd.DataFrame):
 
 
 def main():
-    now_utc = datetime.now(timezone.utc)
-    print(f"Running prepare_data at {now_utc.isoformat()} UTC")
+    now = datetime.now(timezone.utc)
+    print(f"Running prepare_data at {now.isoformat()} UTC")
 
-    # Try to download latest PDF (best effort)
-    downloaded = download_pdf()
-    if not downloaded and not os.path.exists(PDF_PATH):
-        print("⚠️ No PDF available; continuing with whatever existing CSV content exists.")
-
+    _ = download_pdf()  # best effort
     parsed = parse_pdf()
-    merged_df = merge_and_write(parsed)
 
-    if not merged_df.empty:
-        # Ensure Triplet exists for summary
-        if "Triplet" not in merged_df.columns:
-            merged_df["Triplet"] = merged_df.apply(lambda r: f"{int(r['Digit1'])}{int(r['Digit2'])}{int(r['Digit3'])}", axis=1)
-        build_summary(merged_df)
+    if not parsed:
+        # fallback to HTML if PDF yielded nothing
+        parsed = parse_html_fallback()
+
+    merged = merge_and_write(parsed)
+    if not merged.empty:
+        build_summary(merged)
     else:
-        print("⚠️ No data to summarize.")
+        print("⚠️ No data available to summarize.")
 
 
 if __name__ == "__main__":
