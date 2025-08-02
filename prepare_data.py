@@ -4,6 +4,7 @@ import logging
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+import re
 
 import pandas as pd
 import pdfplumber
@@ -15,10 +16,44 @@ HISTORY_PATH = Path("data/ga_cash3_history.csv")
 SUMMARY_PATH = Path("data/summary.json")
 
 
+def extract_digits_from_row(row):
+    """
+    Try to pull three digits from a PDF table row.
+    Supports:
+      - Separate columns for Digit1, Digit2, Digit3
+      - Combined "7 7 1" or "7,7,1" in one column
+    Returns tuple (d1, d2, d3) or None if cannot.
+    """
+    # Try separate columns first: look for three int-like cells in a row
+    for i in range(len(row) - 2):
+        slice_ = row[i : i + 3]
+        try:
+            digits = [int(re.sub(r"\D", "", str(c))) for c in slice_]
+            if all(0 <= d <= 9 for d in digits):
+                return digits
+        except Exception:
+            continue
+
+    # Fallback: look for a cell with three numbers together
+    for cell in row:
+        if not cell:
+            continue
+        cleaned = cell.replace(",", " ").strip()
+        parts = cleaned.split()
+        if len(parts) == 3:
+            try:
+                digits = [int(p) for p in parts]
+                if all(0 <= d <= 9 for d in digits):
+                    return digits
+            except ValueError:
+                continue
+    return None
+
+
 def parse_pdf_to_dataframe(pdf_path: Path) -> pd.DataFrame:
     """
-    Parses the provided PDF (expected to be in same format as the GA Cash3 results)
-    and returns a DataFrame with Date, Draw, Digit1, Digit2, Digit3.
+    Parses the provided PDF and returns a DataFrame with columns:
+    Date, Draw, Digit1, Digit2, Digit3
     """
     if not pdf_path.exists():
         raise FileNotFoundError(f"PDF not found at {pdf_path}")
@@ -29,33 +64,58 @@ def parse_pdf_to_dataframe(pdf_path: Path) -> pd.DataFrame:
         for page in pdf.pages:
             tables = page.extract_tables()
             for table in tables:
-                for row in table:
-                    if not row or len(row) < 3:
+                for raw in table:
+                    if not raw or len(raw) < 2:
                         continue
-                    date_cell = row[0].strip() if row[0] else ""
-                    draw_cell = row[1].strip() if row[1] else ""
-                    winning_numbers = row[2].strip() if row[2] else ""
 
+                    # Skip header-like rows
+                    joined = " ".join([str(c).lower() if c else "" for c in raw])
+                    if "date" in joined and "draw" in joined:
+                        continue
+
+                    # Attempt to find draw type ("Midday", "Evening", "Night")
+                    draw_cell = None
+                    for cell in raw:
+                        if not cell:
+                            continue
+                        if isinstance(cell, str) and cell.strip().lower() in ("midday", "evening", "night"):
+                            draw_cell = cell.strip().title()
+                            break
+                    if not draw_cell:
+                        # maybe it's second column if consistent
+                        candidate = raw[1] if len(raw) > 1 else ""
+                        if isinstance(candidate, str) and candidate.strip().lower() in ("midday", "evening", "night"):
+                            draw_cell = candidate.strip().title()
+                    if not draw_cell:
+                        continue  # cannot determine draw type
+
+                    # Date: look for anything matching MM/DD/YYYY or similar in the row
+                    date_cell = None
+                    date_pattern = re.compile(r"(\d{1,2}/\d{1,2}/\d{4})")
+                    for cell in raw:
+                        if not cell:
+                            continue
+                        m = date_pattern.search(cell)
+                        if m:
+                            try:
+                                parsed = datetime.strptime(m.group(1), "%m/%d/%Y").date().isoformat()
+                                date_cell = parsed
+                                break
+                            except Exception:
+                                date_cell = m.group(1)
+                                break
                     if not date_cell:
-                        continue
-                    if draw_cell.lower() not in ("midday", "evening", "night"):
-                        continue
-                    digits = winning_numbers.replace(",", " ").split()
-                    if len(digits) != 3:
-                        continue
-                    try:
-                        d1, d2, d3 = [int(d) for d in digits]
-                    except ValueError:
-                        continue
+                        continue  # no date, skip
 
-                    # Normalize date if possible (expects MM/DD/YYYY)
-                    try:
-                        parsed_date = datetime.strptime(date_cell, "%m/%d/%Y").date().isoformat()
-                    except Exception:
-                        parsed_date = date_cell  # fallback to raw
+                    # Extract digits
+                    digits = extract_digits_from_row(raw)
+                    if not digits:
+                        logger.debug("Skipping row; couldn't extract digits: %s", raw)
+                        continue
+                    d1, d2, d3 = digits
 
                     rows.append({
-                        "Date": parsed_date,
+                        "Date": date_cell,
                         "Draw": draw_cell,
                         "Digit1": d1,
                         "Digit2": d2,
@@ -102,7 +162,6 @@ def build_summary(df: pd.DataFrame):
 
     if not df.empty:
         latest = df.iloc[-1].to_dict()
-        # convert numpy types to native
         for k, v in list(latest.items()):
             if hasattr(v, "item"):
                 latest[k] = v.item()
