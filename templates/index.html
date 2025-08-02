@@ -1,8 +1,194 @@
-<ul>
-  <li>Digit1 (common): {{ predictions.common.Digit1 | default("N/A") }}</li>
-  <li>Digit2 (common): {{ predictions.common.Digit2 | default("N/A") }}</li>
-  <li>Digit3 (common): {{ predictions.common.Digit3 | default("N/A") }}</li>
-  <li>Digit1 (uncommon): {{ predictions.uncommon.Digit1 | default("N/A") }}</li>
-  <li>Digit2 (uncommon): {{ predictions.uncommon.Digit2 | default("N/A") }}</li>
-  <li>Digit3 (uncommon): {{ predictions.uncommon.Digit3 | default("N/A") }}</li>
-</ul>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>GA Cash3 Predictor</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body {
+      font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 1rem;
+      background: #f7f8fa;
+      color: #1f2d3a;
+    }
+    h1, h2 {
+      margin-top: 1.2rem;
+      margin-bottom: 0.4rem;
+    }
+    .card {
+      background: #fff;
+      padding: 1rem 1.25rem;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.04);
+      margin-bottom: 1rem;
+    }
+    .grid {
+      display: grid;
+      gap: 1rem;
+    }
+    .two-col {
+      grid-template-columns: repeat(auto-fit,minmax(220px,1fr));
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    th, td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #e2e8f0;
+      text-align: left;
+    }
+    th {
+      background: #f0f4f8;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      background: #e2e8f0;
+      margin-right: 4px;
+    }
+    .small {
+      font-size: 0.75rem;
+      color: #6f7d8c;
+    }
+    .fallback {
+      color: #888;
+    }
+    .flex {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .digit-box {
+      background: #f0f4f8;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-weight: bold;
+      min-width: 60px;
+      text-align: center;
+    }
+    .section-title {
+      border-left: 4px solid #4f46e5;
+      padding-left: 8px;
+      margin-bottom: 0.5rem;
+    }
+    .mono {
+      font-family: ui-monospace,monospace;
+      background: #f1f5fa;
+      padding: 4px 6px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>GA Cash3 Predictor</h1>
+    <p class="small">
+      Last updated:
+      {% if summary.last_updated %}
+        {{ summary.last_updated }}
+      {% else %}
+        <span class="fallback">Unknown</span>
+      {% endif %}
+      &bull; Total draws: {{ summary.total_draws | default("N/A") }}
+    </p>
+  </header>
+
+  {% macro show_digit(label, value) -%}
+    <div>
+      <div style="font-size:0.65rem; text-transform: uppercase; letter-spacing:0.5px;">{{ label }}</div>
+      <div class="digit-box">{{ value if value is not none else "N/A" }}</div>
+    </div>
+  {%- endmacro %}
+
+  <div class="grid two-col">
+    <div class="card">
+      <div class="section-title"><h2 style="display:inline;">Latest Draw</h2></div>
+      {% if latest %}
+        <p><strong>Date:</strong> {{ latest.Date | default("N/A") }}</p>
+        <p><strong>Draw:</strong> {{ latest.Draw | default("N/A") }}</p>
+        <div class="flex">
+          {{ show_digit("Digit1", latest.Digit1) }}
+          {{ show_digit("Digit2", latest.Digit2) }}
+          {{ show_digit("Digit3", latest.Digit3) }}
+        </div>
+        {% if latest.Digit1 is not none and latest.Digit2 is not none and latest.Digit3 is not none %}
+          <p class="small">Combined: {{ latest.Digit1 }}{{ latest.Digit2 }}{{ latest.Digit3 }}</p>
+        {% endif %}
+      {% else %}
+        <p class="fallback">No latest draw available.</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <div class="section-title"><h2 style="display:inline;">Predictions / Insights</h2></div>
+      <div class="grid" style="grid-template-columns: repeat(auto-fit,minmax(140px,1fr));">
+        <div>
+          <h3 style="margin:0.25rem 0;">Common</h3>
+          <ul style="padding-left:1rem; margin:0;">
+            <li>Digit1: {{ predictions.common.Digit1 | default("N/A") }}</li>
+            <li>Digit2: {{ predictions.common.Digit2 | default("N/A") }}</li>
+            <li>Digit3: {{ predictions.common.Digit3 | default("N/A") }}</li>
+          </ul>
+        </div>
+        <div>
+          <h3 style="margin:0.25rem 0;">Uncommon</h3>
+          <ul style="padding-left:1rem; margin:0;">
+            <li>Digit1: {{ predictions.uncommon.Digit1 | default("N/A") }}</li>
+            <li>Digit2: {{ predictions.uncommon.Digit2 | default("N/A") }}</li>
+            <li>Digit3: {{ predictions.uncommon.Digit3 | default("N/A") }}</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title"><h2 style="display:inline;">History</h2></div>
+    {% if history and history | length > 0 %}
+      <table aria-label="draw history">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Draw</th>
+            <th>Digit1</th>
+            <th>Digit2</th>
+            <th>Digit3</th>
+            <th>Combined</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in history %}
+            <tr>
+              <td>{{ row.Date | default("N/A") }}</td>
+              <td>{{ row.Draw | default("N/A") }}</td>
+              <td>{{ row.Digit1 if row.Digit1 is not none else "N/A" }}</td>
+              <td>{{ row.Digit2 if row.Digit2 is not none else "N/A" }}</td>
+              <td>{{ row.Digit3 if row.Digit3 is not none else "N/A" }}</td>
+              <td>
+                {% if row.Digit1 is not none and row.Digit2 is not none and row.Digit3 is not none %}
+                  {{ row.Digit1 }}{{ row.Digit2 }}{{ row.Digit3 }}
+                {% else %}
+                  <span class="fallback">—</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="fallback">No history available.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="section-title"><h2 style="display:inline;">Raw Summary (for debugging)</h2></div>
+    <pre class="mono">{{ summary | tojson(indent=2) }}</pre>
+  </div>
+</body>
+</html>
