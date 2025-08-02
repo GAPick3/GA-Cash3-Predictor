@@ -1,44 +1,47 @@
+from flask import Flask, render_template
 import json
 import pandas as pd
-from flask import Flask, render_template
+import logging
 
 app = Flask(__name__)
+logger = app.logger
 
 def load_summary():
     try:
-        with open("data/summary.json", "r") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        app.logger.warning("summary.json not found")
-        return {}
-    except json.JSONDecodeError:
-        app.logger.warning("summary.json malformed")
-        return {}
+        with open("data/summary.json") as f:
+            summary = json.load(f)
+    except Exception as e:
+        logger.warning("summary.json malformed or missing: %s", e)
+        summary = {}
+    return summary
 
 def load_history():
     try:
-        df = pd.read_csv("data/ga_cash3_history.csv")
-        return df.to_dict(orient="records")
-    except FileNotFoundError:
-        app.logger.warning("history CSV not found")
-        return []
+        history = pd.read_csv("data/ga_cash3_history.csv")
     except Exception as e:
-        app.logger.warning(f"failed to load history: {e}")
-        return []
+        logger.warning("failed to load history: %s", e)
+        history = pd.DataFrame()
+    return history
 
 @app.route("/")
 def index():
     summary = load_summary()
-    predictions = summary.get("predictions") or summary.get("simple_insights", {})
-    latest = summary.get("latest_draw", {})
     history = load_history()
+
+    # Provide safe defaults so template doesn't blow up
+    predictions = summary.get("predictions", {})
+    common = predictions.get("common", {"Digit1": "N/A", "Digit2": "N/A", "Digit3": "N/A"})
+    uncommon = predictions.get("uncommon", {"Digit1": "N/A", "Digit2": "N/A", "Digit3": "N/A"})
+    preds = {
+        "common": common,
+        "uncommon": uncommon,
+    }
+
+    latest = summary.get("latest_draw", {})
     return render_template(
         "index.html",
         latest=latest,
         summary=summary,
-        history=history,
-        predictions=predictions,
+        history=history.to_dict(orient="records") if not history.empty else [],
+        predictions=preds,
     )
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000)
