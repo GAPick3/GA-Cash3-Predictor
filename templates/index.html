@@ -1,82 +1,89 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8" />
   <title>GA Cash3 Predictor</title>
-  <!-- Tailwind via CDN for quick styling -->
-  <script src="https://cdn.tailwindcss.com"></script>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: system-ui,-apple-system,BlinkMacSystemFont,sans-serif; max-width:960px; margin:0 auto; padding:1rem; }
+    .card { border:1px solid #ddd; border-radius:8px; padding:1rem; margin-bottom:1rem; box-shadow:0 2px 8px rgba(0,0,0,0.05); }
+    h1,h2 { margin-top:0; }
+    .flex { display:flex; gap:1rem; flex-wrap:wrap; }
+    .col { flex:1; min-width:220px; }
+    .small { font-size:0.9em; color:#555; }
+  </style>
 </head>
-<body class="bg-gray-100 font-sans">
-  <nav class="bg-blue-600 p-4 text-white flex justify-between">
-    <div class="text-lg font-bold">GA Cash3 Predictor</div>
-    <div>
-      <a href="/" class="mr-4 hover:underline">Home</a>
-      <a href="/upload" class="hover:underline">Upload PDF</a>
-    </div>
-  </nav>
+<body>
+  <h1>GA Cash3 Predictor</h1>
 
-  <main class="max-w-4xl mx-auto mt-8 p-4">
-    <!-- Summary card -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-      <div class="bg-white rounded-2xl shadow p-4">
-        <div class="text-sm text-gray-500">Last Updated</div>
-        <div class="text-xl font-semibold">{{ summary.last_updated }}</div>
-      </div>
-      <div class="bg-white rounded-2xl shadow p-4">
-        <div class="text-sm text-gray-500">Total Draws</div>
-        <div class="text-xl font-semibold">{{ summary.total_draws }}</div>
-      </div>
-      <!-- add other summary metrics -->
-    </div>
+  <div class="card">
+    <h2>Summary</h2>
+    <p class="small">Last updated: {{ summary.last_updated | default("unknown") }}</p>
+    <p>Total draws: {{ summary.total_draws | default("N/A") }}</p>
+    {% if latest %}
+      <p>Latest draw: {{ latest.Date | default("N/A") }} - digits: 
+        {% if latest.Digit1 is defined and latest.Digit2 is defined and latest.Digit3 is defined %}
+          {{ latest.Digit1 }}, {{ latest.Digit2 }}, {{ latest.Digit3 }}
+        {% else %}
+          N/A
+        {% endif %}
+      </p>
+    {% else %}
+      <p>No latest draw data.</p>
+    {% endif %}
+  </div>
 
-    <!-- Recent draws table -->
-    <div class="bg-white rounded-2xl shadow p-4 mb-6">
-      <h2 class="text-lg font-bold mb-2">Recent Draws</h2>
-      <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse">
-          <thead>
+  <div class="card">
+    <h2>Predictions</h2>
+    {% set preds = predictions if predictions is defined else summary.simple_insights %}
+    <div class="flex">
+      <div class="col">
+        <h3>Common</h3>
+        <ul>
+          <li>Digit1: {{ preds.common.Digit1 | default("N/A") }}</li>
+          <li>Digit2: {{ preds.common.Digit2 | default("N/A") }}</li>
+          <li>Digit3: {{ preds.common.Digit3 | default("N/A") }}</li>
+        </ul>
+      </div>
+      <div class="col">
+        <h3>Uncommon</h3>
+        <ul>
+          <li>Digit1: {{ preds.uncommon.Digit1 | default("N/A") }}</li>
+          <li>Digit2: {{ preds.uncommon.Digit2 | default("N/A") }}</li>
+          <li>Digit3: {{ preds.uncommon.Digit3 | default("N/A") }}</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>History (last 10)</h2>
+    {% if history %}
+      <table border="1" cellpadding="4" cellspacing="0" style="width:100%; border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th>Date</th><th>Draw</th><th>Digits</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in history[-10:] %}
             <tr>
-              <th class="border-b py-2">Date</th>
-              <th class="border-b py-2">Draw</th>
-              <th class="border-b py-2">Digits</th>
+              <td>{{ row.Date | default("") }}</td>
+              <td>{{ row.Draw | default("") }}</td>
+              <td>
+                {% if row.Digit1 is defined and row.Digit2 is defined and row.Digit3 is defined %}
+                  {{ row.Digit1 }}, {{ row.Digit2 }}, {{ row.Digit3 }}
+                {% else %}
+                  N/A
+                {% endif %}
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {% for row in recent_draws %}
-            <tr class="odd:bg-gray-50">
-              <td class="py-1">{{ row.Date }}</td>
-              <td class="py-1">{{ row.Draw }}</td>
-              <td class="py-1">{{ row.Digit1 }} {{ row.Digit2 }} {{ row.Digit3 }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Prediction section -->
-    <div class="bg-white rounded-2xl shadow p-4">
-      <h2 class="text-lg font-bold mb-2">Simple Prediction Insights</h2>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <p class="text-sm text-gray-600">Most common digits per position (last N draws):</p>
-          <ul class="list-disc list-inside">
-            <li>Digit1: {{ predictions.common.Digit1 }}</li>
-            <li>Digit2: {{ predictions.common.Digit2 }}</li>
-            <li>Digit3: {{ predictions.common.Digit3 }}</li>
-          </ul>
-        </div>
-        <div>
-          <p class="text-sm text-gray-600">Least common digits per position:</p>
-          <ul class="list-disc list-inside">
-            <li>Digit1: {{ predictions.uncommon.Digit1 }}</li>
-            <li>Digit2: {{ predictions.uncommon.Digit2 }}</li>
-            <li>Digit3: {{ predictions.uncommon.Digit3 }}</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </main>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>No history available.</p>
+    {% endif %}
+  </div>
 </body>
 </html>
